@@ -14,3 +14,4 @@ export default function TextInput({ icon: Icon = Mail, ...props }) {
     </div>
   );
 }
+
