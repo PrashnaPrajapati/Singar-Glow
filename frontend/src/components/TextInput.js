@@ -1,17 +1,22 @@
-import { Mail } from "lucide-react";
+import { forwardRef } from "react";
 
-export default function TextInput({ icon: Icon = Mail, ...props }) {
+const TextInput = forwardRef(({ icon: Icon, label, error, ...props }, ref) => {
   return (
-    <div>
+    <div className="flex flex-col">
+      {label && <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}
       <div className="relative mt-1">
-        <Icon className="absolute left-3.5 top-3.5 text-gray-400" size={18} />
+        {Icon && <Icon className="absolute left-3 top-3.5 text-gray-400" size={18} />}
         <input
           {...props}
-          className="w-full pl-12 p-3 border rounded-lg focus:outline-pink-400
-                    placeholder-gray-700 text-gray-900"
+          ref={ref}
+          className={`w-full pl-10 p-3 border rounded-lg focus:outline-pink-400 placeholder-gray-400 text-gray-700 ${
+            error ? "border-red-500" : "border-gray-300"
+          }`}
         />
       </div>
+      {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
     </div>
   );
-}
+});
 
+export default TextInput;
