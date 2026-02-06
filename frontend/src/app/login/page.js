@@ -1,51 +1,138 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import Logo from "@/components/Logo";
 import TextInput from "@/components/TextInput";
 import PasswordInput from "@/components/PasswordInput";
 import Button from "@/components/Button";
 import GoogleButton from "@/components/GoogleButton";
+import { Mail } from "lucide-react";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 export default function LoginPage() {
+  const router = useRouter();
+
+  const emailRef = useRef(null);
+  const passwordRef = useRef(null);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = (e) => {
+
+  const validateEmail = () => {
+    const trimmed = email.trim();
+    const regex = /^[A-Za-z0-9._-]{2,}@[^\s@]+\.com$/;
+
+    if (!trimmed) {
+      setErrors({ email: "Email is required." });
+      return false;
+    }
+    if (!regex.test(trimmed)) {
+      setErrors({ email: "Email must be valid and end with .com" });
+      return false;
+    }
+
+    setErrors((prev) => ({ ...prev, email: "" }));
+    return true;
+  };
+
+  const validatePassword = () => {
+    if (!password.trim()) {
+      setErrors({ password: "Password is required." });
+      return false;
+    }
+
+    setErrors((prev) => ({ ...prev, password: "" }));
+    return true;
+  };
+
+  const handleLogin = async (e) => {
   e.preventDefault();
 
-  if (!email && !password) {
-    alert("Please enter email and password");
-    return;
+  if (!validateEmail() || !validatePassword()) return;
+
+  setLoading(true);
+
+  try {
+    const res = await fetch("http://localhost:5001/login", {  // <-- Note the port 5001 here
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ email, password }),
+});
+
+    const data = await res.json();
+
+    if (!res.ok) {
+
+  toast.error(data.message || "Login failed", {
+    position: "top-center",
+    autoClose: 5000,
+  });
+
+  if (data.message === "User not found") {
+    setErrors({ email: "No account found with this email." });
+  } else if (data.message === "Incorrect password") {
+    setErrors({ password: "Incorrect password." });
+  } else {
+    setErrors({ password: "Login failed." });
   }
 
-  if (!email) {
-    alert("Please enter your email");
-    return;
-  }
+  setLoading(false);
+  return;
+}
+    if (res.ok) {
+  localStorage.setItem("token", data.token);
+  localStorage.setItem("role", data.user.role);
 
-  if (!password) {
-    alert("Please enter your password");
-    return;
-  }
+  toast.success(`Welcome, ${data.user.fullName}`, {
+    position: "top-center",
+    autoClose: 3000,
+  });
 
-  // If both fields are filled
-  alert("Login successful!");
-  console.log("Email:", email);
-  console.log("Password:", password);
+  setTimeout(() => {
+    if (data.user.role === "admin") {
+      router.push("/admin/dashboard");
+    } else {
+      router.push("/dashboard");
+    }
+  }, 3000);
+}
+
+  } catch (err) {
+    toast.error("Server error. Please try again.", {
+      position: "top-center",
+      autoClose: 5000,
+    });
+  } finally {
+    setLoading(false);
+  }
 };
+
 
   return (
     <div className="min-h-screen flex bg-white">
+      <ToastContainer />
 
-      {/* LEFT SIDE */}
+      {/* LEFT IMAGE */}
+      <div className="hidden md:block w-1/2">
+        <img
+          src="/login.png"
+          alt="side"
+          className="w-full h-full object-cover brightness-90"
+        />
+      </div>
+
+      {/* RIGHT FORM */}
       <div className="w-full md:w-1/2 flex items-center justify-center bg-pink-50 px-8 py-12">
         <div className="w-full max-w-md">
-
-          {/* Logo */}
+          
           <Logo />
 
-          {/* Title */}
+
           <h2 className="text-3xl font-bold text-center text-gray-900 mb-2">
             Welcome Back
           </h2>
@@ -54,68 +141,71 @@ export default function LoginPage() {
             Login to continue your beauty journey
           </p>
 
-          {/* Form */}
-          <form className="space-y-6" onSubmit={handleLogin}>
 
+          <form className="space-y-6" onSubmit={handleLogin}>
+            
             {/* Email */}
-            <div>
-              <label className="block text-l font-medium text-gray-700 mb-1">
-                Email Address
-              </label>
-              <TextInput 
-              placeholder="Enter your email" 
+            <TextInput
+              ref={emailRef}
+              label="Email Address"
+              placeholder="Enter your email"
+              icon={Mail}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
+              onBlur={validateEmail}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && validateEmail()) {
+                  e.preventDefault();
+                  passwordRef.current?.focus();
+                }
+              }}
+              error={errors.email}
+            />
+
             {/* Password */}
-            <div>
-              <label className="block text-l font-medium text-gray-700 mb-1">
-                Password
-              </label>
-              <PasswordInput 
-              placeholder="Enter your password" 
+            <PasswordInput
+              ref={passwordRef}
+              label="Password"
+              placeholder="Enter your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              />
-              <p className="text-right text-sm text-pink-500 mt-1 cursor-pointer">
-                Forgot Password?
-              </p>
-            </div>
+              onBlur={validatePassword}
+              error={errors.password}
+            />
 
-            {/* Login Button */}
-            <Button>Login</Button>
+            <p className="text-right text-sm text-pink-500 hover:underline">
+              <a href="/forgot-password">Forgot Password?</a>
+            </p>
+
+            <Button disabled={loading}>
+              Login
+            </Button>
           </form>
 
           {/* Divider */}
           <div className="flex items-center my-6">
             <hr className="flex-grow border-gray-300" />
-            <span className="mx-3 text-gray-500 text-sm">Or continue with</span>
+            <span className="mx-3 text-gray-500 text-sm">
+              Or continue with
+            </span>
             <hr className="flex-grow border-gray-300" />
           </div>
 
-          {/* Google Button */}
+
           <GoogleButton />
 
-          {/* Signup */}
+
           <p className="text-center text-sm mt-6 text-gray-500">
-            Don’t have an account? 
+            Don’t have an account?
             <a href="/signup" className="text-pink-600 font-semibold ml-1">
               Sign Up
             </a>
           </p>
-
+          
         </div>
       </div>
 
-      {/* RIGHT IMAGE */}
-      <div className="hidden md:block w-1/2">
-        <img
-          src="/login.jpg"
-          alt="side"
-          className="w-full h-full object-cover brightness-90"
-        />
-      </div>
+
     </div>
   );
 }
