@@ -24,45 +24,78 @@ export default function LoginPage() {
 
 
   const validateEmail = () => {
-    const trimmed = email.trim();
-    const regex = /^[A-Za-z0-9._-]{2,}@[^\s@]+\.com$/;
+  const trimmed = email.trim();
 
-    if (!trimmed) {
-      setErrors({ email: "Email is required." });
-      return false;
-    }
-    if (!regex.test(trimmed)) {
-      setErrors({ email: "Email must be valid and end with .com" });
-      return false;
-    }
+  const allowedProviders = [
+  "gmail","yahoo","hotmail","outlook","icloud",
+  "aol","protonmail","zoho","gmx","mail"
+];
+const allowedTLDs = [
+  "com","edu","io","org","net","co","gov","in","ai","app","dev"
+];
 
-    setErrors((prev) => ({ ...prev, email: "" }));
-    return true;
-  };
+const regex = new RegExp(
+  `^[a-zA-Z0-9._%+-]+@(${allowedProviders.join("|")})\\.(${allowedTLDs.join("|")})$`,
+  "i"
+);
+  if (!trimmed) {
+    setErrors((prev) => ({ ...prev, email: "Email is required." }));
+    emailRef.current?.focus();
+    return false;
+  }
+
+  if (!regex.test(trimmed)) {
+    setErrors((prev) => ({
+      ...prev,
+      email: "Please enter a valid email address",
+    }));
+    emailRef.current?.focus();
+    return false;
+  }
+
+  setErrors((prev) => ({ ...prev, email: "" }));
+  return true;
+};
 
   const validatePassword = () => {
-    if (!password.trim()) {
-      setErrors({ password: "Password is required." });
-      return false;
-    }
+  const trimmed = password.trim(); 
+  const regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
 
-    setErrors((prev) => ({ ...prev, password: "" }));
-    return true;
-  };
+  if (!trimmed) {
+    setErrors({ password: "Password is required." });
+    passwordRef.current?.focus();
+    return false;
+  }
+  if (!regex.test(trimmed)) {
+    setErrors({
+      password: "Password must be 8+ chars with uppercase, lowercase, and a number.",
+    });
+    passwordRef.current?.focus();
+    return false;
+  }
+
+  setErrors((prev) => ({ ...prev, password: "" }));
+  return true;
+};
 
   const handleLogin = async (e) => {
   e.preventDefault();
 
-  if (!validateEmail() || !validatePassword()) return;
+  if (!validateEmail()) return;   
+  if (!validatePassword()) return; 
+
 
   setLoading(true);
 
   try {
-    const res = await fetch("http://localhost:5001/login", {  // <-- Note the port 5001 here
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ email, password }),
-});
+    const res = await fetch("http://localhost:5001/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: email.trim(),
+        password: password.trim(),
+      }),
+    });
 
     const data = await res.json();
 
@@ -90,16 +123,16 @@ export default function LoginPage() {
 
   toast.success(`Welcome, ${data.user.fullName}`, {
     position: "top-center",
-    autoClose: 3000,
+    autoClose: 2000,
   });
 
   setTimeout(() => {
     if (data.user.role === "admin") {
-      router.push("/admin/dashboard");
+      router.replace("/admin/dashboard");
     } else {
-      router.push("/dashboard");
+      router.replace("/dashboard");
     }
-  }, 3000);
+  }, 2000);
 }
 
   } catch (err) {
@@ -129,21 +162,20 @@ export default function LoginPage() {
       {/* RIGHT FORM */}
       <div className="w-full md:w-1/2 flex items-center justify-center bg-pink-50 px-8 py-12">
         <div className="w-full max-w-md">
-          
+
           <Logo />
-
-
+          
           <h2 className="text-3xl font-bold text-center text-gray-900 mb-2">
             Welcome Back
           </h2>
-
+        
           <p className="text-center text-gray-400 mb-8">
             Login to continue your beauty journey
           </p>
 
 
           <form className="space-y-6" onSubmit={handleLogin}>
-            
+
             {/* Email */}
             <TextInput
               ref={emailRef}
@@ -160,6 +192,7 @@ export default function LoginPage() {
                 }
               }}
               error={errors.email}
+              disabled={loading}
             />
 
             {/* Password */}
@@ -171,14 +204,19 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               onBlur={validatePassword}
               error={errors.password}
+              disabled={loading}
             />
 
             <p className="text-right text-sm text-pink-500 hover:underline">
               <a href="/forgot-password">Forgot Password?</a>
             </p>
 
-            <Button disabled={loading}>
-              Login
+            <Button
+              type="submit"
+              fullWidth
+              disabled={loading}
+            >
+              {loading ? "Logging in..." : "Login"}
             </Button>
           </form>
 
@@ -204,8 +242,7 @@ export default function LoginPage() {
           
         </div>
       </div>
-
-
+      
     </div>
   );
 }
