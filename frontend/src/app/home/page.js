@@ -24,18 +24,22 @@ export default function HomePage() {
 
   const steps = [
     {
+      icon: "💄",
       title: "Choose Service",
       desc: "Browse and select your desired beauty service",
     },
     {
+      icon: "📆",
       title: "Pick Location & Time",
-      desc: "Choose salon or home service easily",
+      desc: "Choose between home service or salon visit and select your preferred time",
     },
     {
+      icon: "✨",
       title: "Relax & Enjoy",
       desc: "Our experts take care of everything",
     },
   ];
+
 
   return (
     <div className="bg-[#fff7fa] text-gray-800">
@@ -124,6 +128,7 @@ export default function HomePage() {
           <div className="grid md:grid-cols-3 gap-8">
             {steps.map((step, i) => (
               <div key={i} className="bg-white rounded-xl shadow-md p-6">
+                  <div className="text-4xl mb-4">{step.icon}</div>
                 <h3 className="font-semibold mb-2">
                   {i + 1}. {step.title}
                 </h3>
@@ -136,18 +141,25 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="text-center py-16 bg-white">
-        <h2 className="text-2xl font-bold mb-4 bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">
-          Ready to Glow?
-        </h2>
-        <p className="text-gray-600 mb-6">
-          Book your first service today and experience beauty like never before
-        </p>
+      <section className="bg-white py-16">
+  <div className="max-w-4xl mx-auto px-6">
+    <div className="bg-[#fff7fa] rounded-3xl shadow-lg p-10 text-center">
+      
+      <h2 className="text-2xl md:text-3xl font-bold mb-4 bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">
+        Ready to Glow?
+      </h2>
 
-        <Link href="/signup">
-          <Button>Get Started Now</Button>
-        </Link>
-      </section>
+      <p className="text-gray-600 mb-6">
+        Book your first service today and experience beauty like never before
+      </p>
+
+      <Link href="/signup">
+        <Button>Get Started Now</Button>
+      </Link>
+
+    </div>
+  </div>
+</section>
 
       <Footer />
 
