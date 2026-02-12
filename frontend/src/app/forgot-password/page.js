@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Button from "@/components/Button";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -42,17 +43,17 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-pink-50 p-6">
+    <div className="min-h-screen flex items-center justify-center bg-pink-50 px-8 py-12">
       <div className="max-w-md w-full bg-white rounded-lg shadow p-8">
-        <h2 className="text-2xl font-bold mb-4 text-center text-pink-600">Reset Your Password</h2>
+        <h2 className="text-3xl font-bold mb-4 text-center text-gray-900">Reset Your Password</h2>
         <form onSubmit={handleReset} className="space-y-4">
-          <label className="block text-gray-700 font-semibold">Email Address</label>
+          <label className="block text-gray-500 font-semibold">Email Address</label>
           <input
             type="email"
             placeholder="Enter your email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full p-3 border border-gray-300 rounded focus:outline-pink-500"
+            className="w-full p-3 border border-gray-300 rounded focus:outline-pink-500 text-gray-900 placeholder-gray-400"
           />
           {error && <p className="text-red-600 text-sm">{error}</p>}
           {message && <p className="text-green-600 text-sm">{message}</p>}
@@ -63,13 +64,9 @@ export default function ForgotPasswordPage() {
             </div>
           )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-pink-600 text-white font-semibold py-3 rounded hover:bg-pink-700 transition"
-          >
+          <Button type="submit" fullWidth disabled={loading}>
             {loading ? "Sending..." : "Send Reset Link"}
-          </button>
+          </Button>
         </form>
       </div>
     </div>

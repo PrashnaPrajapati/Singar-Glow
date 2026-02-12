@@ -79,6 +79,7 @@ export default function SignupPage() {
     `^[a-zA-Z0-9._%+-]+@(${allowedProviders.join("|")})\\.(${allowedTLDs.join("|")})$`,
     "i" 
   );
+
   if (!trimmed) {
     setErrors(prev => ({ ...prev, email: "Email is required." }));
     emailRef.current?.focus();
@@ -220,7 +221,7 @@ export default function SignupPage() {
   return (
     <div className="min-h-screen flex bg-white">
       <ToastContainer 
-      position ="top-right"
+      position ="top-center"
       autoClose={5000}
       hideProgressBar={false}
       newestOnTop={false} 
@@ -230,7 +231,7 @@ export default function SignupPage() {
       draggable
       pauseOnHover
       />
-      {/* Left Image */}
+
       <div className="hidden md:block w-1/2">
         <img
           src="/signup.png"
@@ -239,13 +240,13 @@ export default function SignupPage() {
         />
       </div>
 
-      {/* Right Section */}
+
       <div className="w-full md:w-1/2 flex items-center justify-center bg-pink-50 px-8 py-12">
-
+       
         <div className="w-full max-w-md">
-
+         
           <Logo />
-
+          
           <h2 className="text-2xl font-bold text-center text-gray-800 mb-2">
             Create Account
           </h2>
@@ -256,7 +257,7 @@ export default function SignupPage() {
 
           <form className="space-y-5" onSubmit={handleSignup}>
 
-            {/* Full Name */}
+
             <TextInput
               ref={fullNameRef}
               placeholder="Enter your full name"
@@ -274,7 +275,7 @@ export default function SignupPage() {
               disabled={loading}
             />
 
-            {/* Phone */}
+
             <TextInput
             ref={phoneRef}
             placeholder="Enter your phone number"
@@ -298,7 +299,7 @@ export default function SignupPage() {
             disabled={loading}
           />
 
-            {/* Email */}
+
             <TextInput
               ref={emailRef}
               placeholder="Enter your email"
@@ -317,7 +318,7 @@ export default function SignupPage() {
               disabled={loading}
             />
 
-            {/* Password */}
+          
             <PasswordInput
               ref={passwordRef}
               placeholder="Create a password"
@@ -337,7 +338,7 @@ export default function SignupPage() {
               disabled={loading}
             />
 
-            {/* Confirm Password */}
+           
             <PasswordInput
               ref={confirmPasswordRef}
               placeholder="Confirm your password"
@@ -357,7 +358,7 @@ export default function SignupPage() {
               disabled={loading}
             />
 
-            {/* Gender */}
+            
             <div>
               <label className="text-sm font-medium text-gray-700">Gender</label>
               <div className="flex items-center gap-5 mt-2">
