@@ -24,6 +24,7 @@ const transporter = nodemailer.createTransport({
 app.post("/signup", async (req, res) => {
   const { fullName, phone, email, password, gender } = req.body;
 
+<<<<<<< Updated upstream
   if (!fullName || !phone || !email || !password || !gender) {
     return res.status(400).json({ message: "All fields are required" });
   }
@@ -31,11 +32,68 @@ app.post("/signup", async (req, res) => {
   db.query("SELECT id FROM users WHERE email = ?", [email], async (err, results) => {
     if (err) return res.status(500).json({ message: "Database error" });
     if (results.length > 0)
+=======
+
+    if (!fullName || !phone || !email || !password || !gender) {
+      return res.status(400).json({ message: "All fields are required" });
+    }
+
+    
+    const nameRegex = /^[A-Za-z]+([ '-][A-Za-z]+)+$/;
+    if (!nameRegex.test(fullName.trim())) {
+      return res.status(400).json({ message: "Full name must be at least 2 words and letters only" });
+    }
+
+  
+    const allowedProviders = [
+      "gmail", "yahoo", "hotmail", "outlook", "icloud",
+      "aol", "protonmail", "zoho", "gmx", "mail"
+    ];
+    const allowedTLDs = [
+      "com", "edu", "io", "org", "net", "co", "gov",
+      "in", "ai", "app", "dev"
+    ];
+    const emailRegex = new RegExp(
+      `^[a-zA-Z0-9._%+-]+@(${allowedProviders.join("|")})\\.(${allowedTLDs.join("|")})$`,
+      "i"
+    );
+    if (!emailRegex.test(email.trim())) {
+      return res.status(400).json({ message: "Email must be from a specific provider and TLD" });
+    }
+    
+    const phoneDigits = phone.replace(/\D/g, "");
+    if (!/^\d{10}$/.test(phoneDigits)) {
+      return res.status(400).json({ message: "Phone number must be exactly 10 digits" });
+    }
+
+    
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+    if (!passwordRegex.test(password)) {
+      return res.status(400).json({ message: "Password must be 8+ characters with uppercase, lowercase, and a number" });
+    }
+
+    if (password !== req.body.confirmPassword) {
+      return res.status(400).json({ message: "Passwords do not match" });
+    }
+
+  
+    const [existingEmail] = await db.promise().query(
+      "SELECT id FROM users WHERE email = ?",
+      [email.trim()]
+    );
+    if (existingEmail.length > 0) {
+>>>>>>> Stashed changes
       return res.status(400).json({ message: "Email already exists" });
 
+  
     const hashedPassword = await bcrypt.hash(password, 10);
 
+<<<<<<< Updated upstream
     db.query(
+=======
+   
+    await db.promise().query(
+>>>>>>> Stashed changes
       "INSERT INTO users (fullName, phone, email, password, gender) VALUES (?, ?, ?, ?, ?)",
       [fullName, phone, email, hashedPassword, gender],
       (err) => {
@@ -45,6 +103,7 @@ app.post("/signup", async (req, res) => {
     );
   });
 });
+<<<<<<< Updated upstream
 
 app.post("/login", (req, res) => {
   const { email, password } = req.body;
@@ -54,20 +113,75 @@ app.post("/login", (req, res) => {
   db.query("SELECT * FROM users WHERE email = ?", [email], async (err, results) => {
     if (err) return res.status(500).json({ message: "Database error" });
     if (results.length === 0)
+=======
+
+app.post("/login", async (req, res) => {
+  try {
+    let { email, password } = req.body;
+
+
+    if (!email || !password) {
+      return res.status(400).json({ message: "Email and password are required" });
+    }
+
+   
+    email = email.trim();
+    password = password.trim();
+
+   
+    const allowedProviders = [
+      "gmail", "yahoo", "hotmail", "outlook", "icloud",
+      "aol", "protonmail", "zoho", "gmx", "mail"
+    ];
+    const allowedTLDs = [
+      "com", "edu", "io", "org", "net", "co", "gov",
+      "in", "ai", "app", "dev"
+    ];
+    const emailRegex = new RegExp(
+      `^[a-zA-Z0-9._%+-]+@(${allowedProviders.join("|")})\\.(${allowedTLDs.join("|")})$`,
+      "i"
+    );
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ message: "Please enter a valid email address." });
+    }
+
+
+    const [users] = await db.promise().query(
+      "SELECT * FROM users WHERE email = ?",
+      [email]
+    );
+
+    if (users.length === 0) {
+>>>>>>> Stashed changes
       return res.status(401).json({ message: "User not found" });
 
+<<<<<<< Updated upstream
     const user = results[0];
+=======
+    
+>>>>>>> Stashed changes
     const match = await bcrypt.compare(password, user.password);
     if (!match)
       return res.status(401).json({ message: "Incorrect password" });
+<<<<<<< Updated upstream
 
+=======
+    }
+
+    
+>>>>>>> Stashed changes
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
       process.env.SECRET_KEY,
       { expiresIn: "1h" }
     );
 
+<<<<<<< Updated upstream
     res.json({
+=======
+   
+    return res.json({
+>>>>>>> Stashed changes
       message: "Login successful",
       token,
       user: { id: user.id, fullName: user.fullName, email: user.email, role: user.role },
