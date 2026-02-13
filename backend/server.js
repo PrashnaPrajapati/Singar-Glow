@@ -22,17 +22,8 @@ const transporter = nodemailer.createTransport({
 });
 
 app.post("/signup", async (req, res) => {
-  const { fullName, phone, email, password, gender } = req.body;
-
-<<<<<<< Updated upstream
-  if (!fullName || !phone || !email || !password || !gender) {
-    return res.status(400).json({ message: "All fields are required" });
-  }
-
-  db.query("SELECT id FROM users WHERE email = ?", [email], async (err, results) => {
-    if (err) return res.status(500).json({ message: "Database error" });
-    if (results.length > 0)
-=======
+  try {
+    const { fullName, phone, email, password, gender } = req.body;
 
     if (!fullName || !phone || !email || !password || !gender) {
       return res.status(400).json({ message: "All fields are required" });
@@ -82,38 +73,34 @@ app.post("/signup", async (req, res) => {
       [email.trim()]
     );
     if (existingEmail.length > 0) {
->>>>>>> Stashed changes
+
       return res.status(400).json({ message: "Email already exists" });
+    }
+
+    const [existingPhone] = await db.promise().query(
+      "SELECT id FROM users WHERE phone = ?",
+      [phoneDigits]
+    );
+    if (existingPhone.length > 0) {
+      return res.status(400).json({ message: "Phone number already exists" });
+    }
 
   
     const hashedPassword = await bcrypt.hash(password, 10);
 
-<<<<<<< Updated upstream
-    db.query(
-=======
-   
     await db.promise().query(
->>>>>>> Stashed changes
+
       "INSERT INTO users (fullName, phone, email, password, gender) VALUES (?, ?, ?, ?, ?)",
-      [fullName, phone, email, hashedPassword, gender],
-      (err) => {
-        if (err) return res.status(500).json({ message: "Database error" });
-        res.json({ message: "User registered successfully" });
-      }
+      [fullName.trim(), phoneDigits, email.trim(), hashedPassword, gender]
     );
-  });
+
+    return res.json({ message: "User registered successfully" });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Server error" });
+  }
 });
-<<<<<<< Updated upstream
-
-app.post("/login", (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password)
-    return res.status(400).json({ message: "Email and password required" });
-
-  db.query("SELECT * FROM users WHERE email = ?", [email], async (err, results) => {
-    if (err) return res.status(500).json({ message: "Database error" });
-    if (results.length === 0)
-=======
 
 app.post("/login", async (req, res) => {
   try {
@@ -124,7 +111,6 @@ app.post("/login", async (req, res) => {
       return res.status(400).json({ message: "Email and password are required" });
     }
 
-   
     email = email.trim();
     password = password.trim();
 
@@ -152,41 +138,40 @@ app.post("/login", async (req, res) => {
     );
 
     if (users.length === 0) {
->>>>>>> Stashed changes
+
       return res.status(401).json({ message: "User not found" });
-
-<<<<<<< Updated upstream
-    const user = results[0];
-=======
-    
->>>>>>> Stashed changes
-    const match = await bcrypt.compare(password, user.password);
-    if (!match)
-      return res.status(401).json({ message: "Incorrect password" });
-<<<<<<< Updated upstream
-
-=======
     }
 
+    const user = users[0];    
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) {
+      return res.status(401).json({ message: "Incorrect password" });
     
->>>>>>> Stashed changes
+    }
+
+
+
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
+      { id: user.id, email: user.email, role: user.role || "user" },
       process.env.SECRET_KEY,
       { expiresIn: "1h" }
     );
 
-<<<<<<< Updated upstream
-    res.json({
-=======
-   
     return res.json({
->>>>>>> Stashed changes
+      
       message: "Login successful",
       token,
-      user: { id: user.id, fullName: user.fullName, email: user.email, role: user.role },
+      user: {
+        id: user.id,
+        fullName: user.fullName,
+        role: user.role || "user",
+      },
     });
-  });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Server error" });
+  }
 });
 
 app.post("/forgot-password", (req, res) => {
