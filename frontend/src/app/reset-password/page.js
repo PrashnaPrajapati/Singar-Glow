@@ -24,7 +24,7 @@ export default function ResetPasswordPage() {
 
   if (!token)
     return <p className="text-center mt-20 text-red-600">Invalid password reset link.</p>;
-  const validatePassword = () => {
+    const validatePassword = () => {
     const regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/;
 
     if (!newPassword) {
@@ -92,6 +92,7 @@ export default function ResetPasswordPage() {
 
 
   };
+
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-pink-50 px-8 py-12">
