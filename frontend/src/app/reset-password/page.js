@@ -65,8 +65,7 @@ export default function ResetPasswordPage() {
     if (!validateConfirmPassword()) {
       confirmPasswordRef.current?.focus();
       return;
-    }
-
+    } 
     setLoading(true);
 
     try {
@@ -89,11 +88,7 @@ export default function ResetPasswordPage() {
     } finally {
       setLoading(false);
     }
-
-
-  };
-
-
+  }; 
   return (
     <div className="min-h-screen flex items-center justify-center bg-pink-50 px-8 py-12">
       <div className="max-w-md w-full bg-white rounded-lg shadow p-8">
@@ -115,12 +110,10 @@ export default function ResetPasswordPage() {
                   }
                 }
               }}
-              className="w-full p-3 border border-gray-300 rounded focus:outline-pink-500 text-gray-900 placeholder-gray-400"
-            />
+              className="w-full p-3 border border-gray-300 rounded focus:outline-pink-500 text-gray-900 placeholder-gray-400"/>
             <span
               className="absolute right-3 top-3 cursor-pointer"
-              onClick={() => setShowPassword(!showPassword)}
-            >
+              onClick={() => setShowPassword(!showPassword)}>
               {showPassword ? <EyeOff /> : <Eye />}
             </span>
           </div>

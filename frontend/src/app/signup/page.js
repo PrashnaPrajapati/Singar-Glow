@@ -63,8 +63,7 @@ export default function SignupPage() {
   };
 
   const validateEmail = () => {
-  const trimmed = email.trim();
-
+  const trimmed = email.trim(); 
   const allowedProviders = [
     "gmail", "yahoo", "hotmail", "outlook", "icloud",
     "aol", "protonmail", "zoho", "gmx", "mail"
@@ -129,6 +128,7 @@ export default function SignupPage() {
   return true;
 };
 
+
   const validateGender = () => {
     if (!gender) {
       setErrors(prev => ({ ...prev, gender: "Please select a gender." }));
@@ -152,7 +152,7 @@ export default function SignupPage() {
     setLoading(true);
 
     const creatingToastId = toast.info("Creating Account...", {
-      position: "top-right",
+      position: "top-center",
       autoClose: false,
       hideProgressBar: false,
       closeOnClick: false,
@@ -172,8 +172,7 @@ export default function SignupPage() {
           fullName: formattedName,
           phone: phone.trim(),
           email: email.trim(),
-          password: password.trim(),
-          confirmPassword: confirmPassword.trim(),
+          password: password.trim(), 
           gender: finalGender,
         }),
       });
@@ -183,18 +182,15 @@ export default function SignupPage() {
       if (!res.ok) {
         toast.dismiss(creatingToastId);
         toast.error(data.message || "Signup failed", {
-          position: "top-right",
-          autoClose: 5000,
+          position: "top-center", 
         });
         setLoading(false);
         return;
-      }
-
+      } 
      
       toast.update(creatingToastId, {
         render: "Account Created Successfully!",
-        type: "success",
-        autoClose: 2000,
+        type: "success", 
         hideProgressBar: false,
         closeOnClick: true,
         pauseOnHover: true,
@@ -210,8 +206,7 @@ export default function SignupPage() {
       console.error(err);
       toast.dismiss(creatingToastId);
       toast.error("Something went wrong. Please try again.", {
-        position: "top-right",
-        autoClose: 5000,
+        position: "top-center", 
       });
     } finally {
       setLoading(false);
@@ -221,8 +216,7 @@ export default function SignupPage() {
   return (
     <div className="min-h-screen flex bg-white">
       <ToastContainer 
-      position ="top-center"
-      autoClose={5000}
+      position ="top-center" 
       hideProgressBar={false}
       newestOnTop={false} 
       closeOnClick
@@ -230,34 +224,26 @@ export default function SignupPage() {
       pauseOnFocusLoss
       draggable
       pauseOnHover
-      />
-
+      /> 
       <div className="hidden md:block w-1/2">
         <img
           src="/signup.png"
           
           className="w-full h-full object-cover brightness-90"
         />
-      </div>
-
-
+      </div> 
       <div className="w-full md:w-1/2 flex items-center justify-center bg-pink-50 px-8 py-12">
-       
-        <div className="w-full max-w-md">
-         
-          <Logo />
-          
+        <div className="w-full max-w-md"> 
+          <Logo /> 
           <h2 className="text-2xl font-bold text-center text-gray-800 mb-2">
             Create Account
-          </h2>
-          
+          </h2> 
           <p className="text-center text-gray-500 mt-1 mb-6">
             Join us and start your beauty journey
           </p>
 
           <form className="space-y-5" onSubmit={handleSignup}>
-
-
+ 
             <TextInput
               ref={fullNameRef}
               placeholder="Enter your full name"
@@ -274,8 +260,7 @@ export default function SignupPage() {
               error={errors.fullName}
               disabled={loading}
             />
-
-
+ 
             <TextInput
             ref={phoneRef}
             placeholder="Enter your phone number"
@@ -298,8 +283,7 @@ export default function SignupPage() {
             error={errors.phone}
             disabled={loading}
           />
-
-
+ 
             <TextInput
               ref={emailRef}
               placeholder="Enter your email"
@@ -318,7 +302,6 @@ export default function SignupPage() {
               disabled={loading}
             />
 
-          
             <PasswordInput
               ref={passwordRef}
               placeholder="Create a password"
@@ -338,7 +321,6 @@ export default function SignupPage() {
               disabled={loading}
             />
 
-           
             <PasswordInput
               ref={confirmPasswordRef}
               placeholder="Confirm your password"
@@ -358,7 +340,6 @@ export default function SignupPage() {
               disabled={loading}
             />
 
-            
             <div>
               <label className="text-sm font-medium text-gray-700">Gender</label>
               <div className="flex items-center gap-5 mt-2">
