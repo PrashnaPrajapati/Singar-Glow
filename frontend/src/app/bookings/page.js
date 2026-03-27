@@ -13,7 +13,7 @@ export default function BookingsPage() {
   const [services, setServices] = useState([]);
   const [packages, setPackages] = useState([]);
 
-  const [bookingType, setBookingType] = useState("service");
+  const [bookingType, setBookingType] = useState("service"); // service or package
   const [selectedServices, setSelectedServices] = useState(
     serviceIdFromQuery ? [serviceIdFromQuery] : []
   );
@@ -22,7 +22,7 @@ export default function BookingsPage() {
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [notes, setNotes] = useState("");
-  const [locationType, setLocationType] = useState(""); 
+  const [locationType, setLocationType] = useState(""); // home or salon
   const [address, setAddress] = useState("");
 
   const [loading, setLoading] = useState(false);
@@ -34,6 +34,7 @@ export default function BookingsPage() {
 
   const timeSlots = ["09:00","10:00","11:00","12:00","14:00","15:00","16:00","17:00","18:00"];
 
+  // Fetch services and packages
   useEffect(() => {
     fetch("http://localhost:5001/services")
       .then((res) => res.json())
@@ -46,6 +47,7 @@ export default function BookingsPage() {
       .catch(() => setPackages([]));
   }, []);
 
+  // Fetch booked slots whenever date changes
   useEffect(() => {
     if (!date) return;
 
@@ -67,61 +69,64 @@ export default function BookingsPage() {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setErrorMessage("");
+  e.preventDefault();
+  setErrorMessage("");
 
-    if (!token) return setErrorMessage("You must be logged in to book a service!");
-    if (
-      (bookingType === "service" && selectedServices.length === 0) ||
-      (bookingType === "package" && !selectedPackage) ||
-      !date?.trim() ||
-      !time?.trim() ||
-      !locationType?.trim() ||
-      (locationType === "home" && !address?.trim())
-    )
-      return setErrorMessage("Please fill all required fields");
+  if (!token) return setErrorMessage("You must be logged in to book a service!");
+  if (
+    (bookingType === "service" && selectedServices.length === 0) ||
+    (bookingType === "package" && !selectedPackage) ||
+    !date?.trim() ||
+    !time?.trim() ||
+    !locationType?.trim() ||
+    (locationType === "home" && !address?.trim())
+  )
+    return setErrorMessage("Please fill all required fields");
 
-    setLoading(true);
+  setLoading(true);
 
-    try {
-      const requestBody = {
-        package_id: bookingType === "package" ? selectedPackage : null,
-        service_ids: selectedServices.map(Number),
-        booking_date: date,
-        booking_time: time,
-        location_type: locationType,
-        address: locationType === "home" ? address.trim() : "",
-        notes: notes.trim(),
-      };
+  try {
+    const requestBody = {
+      package_id: bookingType === "package" ? selectedPackage : null,
+      service_ids: selectedServices.map(Number),
+      booking_date: date,
+      booking_time: time,
+      location_type: locationType,
+      address: locationType === "home" ? address.trim() : "",
+      notes: notes.trim(),
+    };
 
-      const res = await fetch("http://localhost:5001/bookings", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(requestBody),
-      });
+    const res = await fetch("http://localhost:5001/bookings", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(requestBody),
+    });
 
-      const data = await res.json();
-      if (!res.ok) return setErrorMessage(data.message || "Booking failed");
+    const data = await res.json();
+    if (!res.ok) return setErrorMessage(data.message || "Booking failed");
 
-      router.push("/dashboard");
+    // Redirect to payment page with bookingIds and totalPrice
+    const bookingIdsParam = data.bookingIds ? data.bookingIds.join(",") : data.bookingId;
+    router.push(`/payments?bookingIds=${bookingIdsParam}&totalPrice=${totalPrice}`);
 
-      setSelectedServices(serviceIdFromQuery ? [serviceIdFromQuery] : []);
-      setSelectedPackage(null);
-      setDate("");
-      setTime("");
-      setNotes("");
-      setLocationType("");
-      setAddress("");
-    } catch (err) {
-      console.error(err);
-      setErrorMessage("Something went wrong. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
+    // Reset form (optional)
+    setSelectedServices(serviceIdFromQuery ? [serviceIdFromQuery] : []);
+    setSelectedPackage(null);
+    setDate("");
+    setTime("");
+    setNotes("");
+    setLocationType("");
+    setAddress("");
+  } catch (err) {
+    console.error(err);
+    setErrorMessage("Something went wrong. Please try again.");
+  } finally {
+    setLoading(false);
+  }
+};
 
   const selectedServiceObjects = services.filter((s) =>
     selectedServices.includes(s.id)
@@ -144,6 +149,7 @@ export default function BookingsPage() {
           0
         ) || 0;
 
+  // Filter past slots if date is today
   const today = new Date();
   const selectedDate = new Date(date);
   const filteredTimeSlots = timeSlots.filter((slot) => {
@@ -166,7 +172,9 @@ export default function BookingsPage() {
           </h1>
 
           <div className="max-w-7xl mx-auto flex gap-6 items-start justify-center">
+            {/* LEFT SIDE – Services / Packages */}
             <div className="w-2/6">
+              {/* Toggle buttons */}
               <div className="mb-4 flex gap-4">
                 <button
                   onClick={() => setBookingType("service")}
@@ -174,10 +182,13 @@ export default function BookingsPage() {
                     bookingType === "service"
                       ? "bg-pink-500 text-white"
                       : "bg-gray-200"
-                  }`}>
+                  }`}
+                >
                   Services
                 </button>
+              
               </div>
+
               <div className="grid grid-cols-1 gap-6">
                 {bookingType === "service" &&
                   services
@@ -192,7 +203,8 @@ export default function BookingsPage() {
                           selectedServices.includes(s.id)
                             ? "border-pink-500 bg-gradient-to-r from-pink-100 to-purple-100 shadow-lg scale-[1.02]"
                             : "bg-white border-gray-200 hover:shadow-md hover:scale-[1.01]"
-                        }`}>
+                        }`}
+                      >
                         <img
                           src={`http://localhost:5001${s.image}`}
                           alt={s.name}
@@ -228,10 +240,13 @@ export default function BookingsPage() {
                   ))}
               </div>
             </div>
+
+            {/* MIDDLE SIDE – Booking Form */}
             <div className="w-2/6 bg-white p-6 rounded-xl shadow-lg sticky top-24">
               {errorMessage && (
                 <div className="mb-4 p-2 bg-red-100 text-red-700 rounded">{errorMessage}</div>
               )}
+
               <h2 className="text-xl font-semibold mb-6 text-gray-800">Selected Services</h2>
 
               {selectedServiceObjects.length > 0 ? (
@@ -260,7 +275,8 @@ export default function BookingsPage() {
                       value="salon"
                       checked={locationType === "salon"}
                       onChange={(e) => setLocationType(e.target.value)}
-                      className="w-4 h-4 accent-pink-500"/>
+                      className="w-4 h-4 accent-pink-500"
+                    />
                     Visit Salon
                   </label>
 
@@ -270,7 +286,8 @@ export default function BookingsPage() {
                       value="home"
                       checked={locationType === "home"}
                       onChange={(e) => setLocationType(e.target.value)}
-                      className="w-4 h-4 accent-pink-500"/>
+                      className="w-4 h-4 accent-pink-500"
+                    />
                     Home Service
                   </label>
                 </fieldset>
@@ -283,7 +300,8 @@ export default function BookingsPage() {
                       value={address}
                       onChange={(e) => setAddress(e.target.value)}
                       placeholder="Enter your home address"
-                      className="w-full p-2 border border-gray-300 rounded text-gray-700"/>
+                      className="w-full p-2 border border-gray-300 rounded text-gray-700"
+                    />
                   </div>
                 )}
 
@@ -293,8 +311,11 @@ export default function BookingsPage() {
                     type="date"
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded text-gray-700"/>
+                    className="w-full p-2 border border-gray-300 rounded text-gray-700"
+                  />
                 </div>
+
+                {/* TIME SLOT BUTTONS */}
                 <div className="mb-6">
                   <label className="block mb-3 text-gray-700 font-semibold">Choose a Time Slot</label>
                   <div className="grid grid-cols-4 gap-3">
@@ -313,7 +334,8 @@ export default function BookingsPage() {
                                 : time === slot
                                 ? "bg-pink-500 text-white border-pink-500"
                                 : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
-                            }`}>
+                            }`}
+                        >
                           ⏰ {slot} {isBooked && "❌"}
                         </button>
                       );
@@ -328,15 +350,19 @@ export default function BookingsPage() {
                     onChange={(e) => setNotes(e.target.value)}
                     placeholder="Optional notes"
                     className="w-full p-2 border border-gray-300 rounded text-gray-700"
-                    rows={3}/>
+                    rows={3}
+                  />
                 </div>
               </form>
             </div>
 
+            {/* RIGHT SIDE – Booking Summary */}
             <form
               onSubmit={handleSubmit}
-              className="w-2/6 bg-white p-6 rounded-xl shadow-lg sticky top-24">
+              className="w-2/6 bg-white p-6 rounded-xl shadow-lg sticky top-24"
+            >
               <h2 className="text-xl font-semibold mb-6 text-gray-800">Booking Summary</h2>
+
               <div className="text-gray-700 space-y-3 mb-6">
                 <div className="flex justify-between">
                   <span>Service</span>
@@ -394,12 +420,14 @@ export default function BookingsPage() {
                   !locationType?.trim() ||
                   (locationType === "home" && !address?.trim())
                 }
-                className="w-full py-2 text-white rounded-full bg-gradient-to-r from-pink-500 to-purple-500 hover:scale-105 transition">
+                className="w-full py-2 text-white rounded-full bg-gradient-to-r from-pink-500 to-purple-500 hover:scale-105 transition"
+              >
                 {loading ? "Booking..." : "Proceed to Payment"}
               </button>
             </form>
           </div>
         </main>
+
         <Footer />
       </div>
     </div>
