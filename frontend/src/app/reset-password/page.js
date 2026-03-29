@@ -51,6 +51,26 @@ export default function ResetPasswordPage() {
       setError("Passwords do not match.");
       return false;
     }
+
+    if (!regex.test(newPassword)) {
+      setError(
+        "Password must be 8+ characters and include uppercase, lowercase, number, and special character."
+      );
+      return false;
+    }
+
+    return true;
+  };
+
+  const validateConfirmPassword = () => {
+    if (!confirmPassword) {
+      setError("Please confirm your new password.");
+      return false;
+    }
+    if (confirmPassword !== newPassword) {
+      setError("Passwords do not match.");
+      return false;
+    }
     return true;
   };
 
@@ -66,7 +86,21 @@ export default function ResetPasswordPage() {
       confirmPasswordRef.current?.focus();
       return;
     }
+    return true;
+  };
 
+  const handleReset = async (e) => {
+    e.preventDefault();
+    setError(null);
+    setMessage(null);
+    if (!validatePassword()) {
+      newPasswordRef.current?.focus();
+      return;
+    }
+    if (!validateConfirmPassword()) {
+      confirmPasswordRef.current?.focus();
+      return;
+    } 
     setLoading(true);
 
     try {
@@ -89,6 +123,7 @@ export default function ResetPasswordPage() {
     } finally {
       setLoading(false);
     }
+  }; 
 
 
   };
@@ -115,6 +150,10 @@ export default function ResetPasswordPage() {
                   }
                 }
               }}
+              className="w-full p-3 border border-gray-300 rounded focus:outline-pink-500 text-gray-900 placeholder-gray-400"/>
+            <span
+              className="absolute right-3 top-3 cursor-pointer"
+              onClick={() => setShowPassword(!showPassword)}>
               className="w-full p-3 border border-gray-300 rounded focus:outline-pink-500 text-gray-900 placeholder-gray-400"
             />
             <span

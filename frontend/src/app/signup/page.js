@@ -63,6 +63,7 @@ export default function SignupPage() {
   };
 
   const validateEmail = () => {
+  const trimmed = email.trim(); 
   const trimmed = email.trim();
 
   const allowedProviders = [
@@ -129,6 +130,7 @@ export default function SignupPage() {
   return true;
 };
 
+
   const validateGender = () => {
     if (!gender) {
       setErrors(prev => ({ ...prev, gender: "Please select a gender." }));
@@ -152,6 +154,7 @@ export default function SignupPage() {
     setLoading(true);
 
     const creatingToastId = toast.info("Creating Account...", {
+      position: "top-center",
       position: "top-right",
       autoClose: false,
       hideProgressBar: false,
@@ -172,6 +175,7 @@ export default function SignupPage() {
           fullName: formattedName,
           phone: phone.trim(),
           email: email.trim(),
+          password: password.trim(), 
           password: password.trim(),
           confirmPassword: confirmPassword.trim(),
           gender: finalGender,
@@ -183,16 +187,17 @@ export default function SignupPage() {
       if (!res.ok) {
         toast.dismiss(creatingToastId);
         toast.error(data.message || "Signup failed", {
+          position: "top-center", 
           position: "top-right",
           autoClose: 5000,
         });
         setLoading(false);
         return;
-      }
-
+      } 
      
       toast.update(creatingToastId, {
         render: "Account Created Successfully!",
+        type: "success", 
         type: "success",
         autoClose: 2000,
         hideProgressBar: false,
@@ -210,6 +215,7 @@ export default function SignupPage() {
       console.error(err);
       toast.dismiss(creatingToastId);
       toast.error("Something went wrong. Please try again.", {
+        position: "top-center", 
         position: "top-right",
         autoClose: 5000,
       });
@@ -221,6 +227,7 @@ export default function SignupPage() {
   return (
     <div className="min-h-screen flex bg-white">
       <ToastContainer 
+      position ="top-center" 
       position ="top-center"
       autoClose={5000}
       hideProgressBar={false}
@@ -230,6 +237,7 @@ export default function SignupPage() {
       pauseOnFocusLoss
       draggable
       pauseOnHover
+      /> 
       />
 
       <div className="hidden md:block w-1/2">
@@ -238,6 +246,13 @@ export default function SignupPage() {
           
           className="w-full h-full object-cover brightness-90"
         />
+      </div> 
+      <div className="w-full md:w-1/2 flex items-center justify-center bg-pink-50 px-8 py-12">
+        <div className="w-full max-w-md"> 
+          <Logo /> 
+          <h2 className="text-2xl font-bold text-center text-gray-800 mb-2">
+            Create Account
+          </h2> 
       </div>
 
 
@@ -256,6 +271,7 @@ export default function SignupPage() {
           </p>
 
           <form className="space-y-5" onSubmit={handleSignup}>
+ 
 
 
             <TextInput
@@ -274,6 +290,7 @@ export default function SignupPage() {
               error={errors.fullName}
               disabled={loading}
             />
+ 
 
 
             <TextInput
@@ -298,6 +315,7 @@ export default function SignupPage() {
             error={errors.phone}
             disabled={loading}
           />
+ 
 
 
             <TextInput
