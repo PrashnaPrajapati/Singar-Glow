@@ -2,6 +2,7 @@ import Link from "next/link";
 import Button from "@/components/Button";
 import Logo from "@/components/Logo";
 import Footer from "@/components/Footer";
+import Image from "next/image";
 
 export default function HomePage() {
   const services = [
@@ -39,8 +40,7 @@ export default function HomePage() {
       desc: "Our experts take care of everything",
     },
   ];
-
-
+ 
   return (
     <div className="bg-[#fff7fa] text-gray-800">
 
@@ -92,11 +92,12 @@ export default function HomePage() {
               key={i}
               className="bg-white rounded-2xl shadow-md hover:shadow-lg transition overflow-hidden"
             >
-              <div className="aspect-square w-full overflow-hidden">
-                <img
+              <div className="aspect-square w-full relative">
+                <Image
                   src={service.image}
                   alt={service.title}
-                  className="w-full h-full object-cover"
+                  fill
+                  className="object-cover"
                 />
               </div>
 
@@ -159,10 +160,8 @@ export default function HomePage() {
 
     </div>
   </div>
-</section>
-
-      <Footer />
-
+</section> 
+      <Footer /> 
     </div>
   );
 }
