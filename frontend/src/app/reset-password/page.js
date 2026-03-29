@@ -51,6 +51,41 @@ export default function ResetPasswordPage() {
       setError("Passwords do not match.");
       return false;
     }
+
+    if (!regex.test(newPassword)) {
+      setError(
+        "Password must be 8+ characters and include uppercase, lowercase, number, and special character."
+      );
+      return false;
+    }
+
+    return true;
+  };
+
+  const validateConfirmPassword = () => {
+    if (!confirmPassword) {
+      setError("Please confirm your new password.");
+      return false;
+    }
+    if (confirmPassword !== newPassword) {
+      setError("Passwords do not match.");
+      return false;
+    }
+    return true;
+  };
+
+  const handleReset = async (e) => {
+    e.preventDefault();
+    setError(null);
+    setMessage(null);
+    if (!validatePassword()) {
+      newPasswordRef.current?.focus();
+      return;
+    }
+    if (!validateConfirmPassword()) {
+      confirmPasswordRef.current?.focus();
+      return;
+    }
     return true;
   };
 
@@ -89,6 +124,11 @@ export default function ResetPasswordPage() {
       setLoading(false);
     }
   }; 
+
+
+  };
+
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-pink-50 px-8 py-12">
       <div className="max-w-md w-full bg-white rounded-lg shadow p-8">
@@ -114,6 +154,12 @@ export default function ResetPasswordPage() {
             <span
               className="absolute right-3 top-3 cursor-pointer"
               onClick={() => setShowPassword(!showPassword)}>
+              className="w-full p-3 border border-gray-300 rounded focus:outline-pink-500 text-gray-900 placeholder-gray-400"
+            />
+            <span
+              className="absolute right-3 top-3 cursor-pointer"
+              onClick={() => setShowPassword(!showPassword)}
+            >
               {showPassword ? <EyeOff /> : <Eye />}
             </span>
           </div>

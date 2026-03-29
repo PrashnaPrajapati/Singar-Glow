@@ -9,6 +9,9 @@ const menu = [
   { name: "Services", href: "/services" },
   { name: "Customize Services", href: "/bookings" },
   { name: "Chat", href: "/chat" }, 
+  { name: "Bookings", href: "/bookings" },
+  { name: "Chat", href: "/chat" },
+  { name: "Reviews", href: "/reviews" },
   { name: "Payments", href: "/payments" },
   { name: "Profile", href: "/profile" },
 ];
