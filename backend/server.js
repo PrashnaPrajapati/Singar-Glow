@@ -5,10 +5,19 @@ const cors = require("cors");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
+const { initializeChat } = require("./chatHandler");
+const socketIo = require('socket.io');
 const db = require("./db");
 
 const app = express();
 const port = 5001;
+const server = http.createServer(app);
+const io = socketIo(server, {
+  cors: {
+    origin: "*",  
+    methods: ["GET", "POST"]
+  }
+}); 
 
 app.use(cors({ origin: "http://localhost:3000", credentials: true })); 
 app.use(express.json());
@@ -239,6 +248,31 @@ app.post("/reset-password", async (req, res) => {
   );
 });
 
+app.get("/", (req, res) => {
+  res.send("Chat server is running!");
+});
+ 
+initializeChat(io);
+
+
+// Initialize notification service
+const notificationService = new NotificationService(io); 
+ 
+const getReceiverByRole = (receiverId, senderRole) => {
+  return new Promise((resolve, reject) => {
+    const role = senderRole === "users" ? "admin" : "users";
+    const query = "SELECT id, socketId FROM users WHERE id = ? AND role = ? LIMIT 1"; 
+    db.query(query, [receiverId, role], (err, result) => {
+      if (err) return reject(err);
+      if (result.length > 0) {
+        resolve(result[0]);  
+      } else {
+        reject("Receiver not found.");
+      }
+    });
+  });
+};
+
 const verifyAdmin = (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader) return res.status(401).json({ message: "No token" });
@@ -260,7 +294,7 @@ app.get("/admin/users", verifyAdmin, (req, res) => {
     res.json(results);
   });
 });
-
+ 
 app.get("/services", (req, res) => {
   db.query(
     "SELECT * FROM services WHERE status = 'active'",
@@ -448,5 +482,6 @@ app.get("/admin/bookings", verifyAdmin, (req, res) => {
 
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`);
+  console.log(`Socket.io ready at http://localhost:${port}`);
 });
 
