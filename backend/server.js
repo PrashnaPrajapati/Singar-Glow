@@ -351,6 +351,42 @@ const verifyUser = (req, res, next) => {
   }
 };
 
+app.post("/payment", (req, res) => {
+  const { bookingId, amount, method, status } = req.body;
+
+  const query = `
+    INSERT INTO payments (booking_id, amount, method, status)
+    VALUES (?, ?, ?, ?)
+  `;
+
+  db.query(query, [bookingId, amount, method, status], (err, result) => {
+    if (err) {
+      console.log(err);
+      return res.status(500).json({ message: "DB insert failed" });
+    }
+
+    if (status === "success") {
+      db.query(
+        "UPDATE bookings SET status='confirmed' WHERE id=?",
+        [bookingId],
+        (err2) => {
+          if (err2) {
+            console.log(err2);
+            return res.status(500).json({ message: "Booking update failed" });
+          }
+
+          return res.json({ success: true });
+        }
+      );
+    } else {
+      return res.json({ success: false });
+    }
+  });
+});
+
+const paymentsRouter = require("./payments");
+app.use("/payments", paymentsRouter);
+
 app.post("/bookings", verifyUser, (req, res) => {
   const { service_ids, booking_date, booking_time, notes, location_type, address } = req.body;
   const user_id = req.user.id;

@@ -13,30 +13,40 @@ export default function EsewaCallbackPage() {
 
   useEffect(() => {
     const verifyPayment = async () => {
-      try {
-        const dataParam = searchParams.get("data");
-
+      try { 
+        const dataParam = searchParams.get("data"); 
         let refId, pid, amt, bookingIds;
 
-        if (dataParam) {
+        if (dataParam) { 
+          let decodedData = null;
           try {
-            const decodedData = JSON.parse(atob(dataParam));
-            refId = decodedData.transaction_code;
-            pid = decodedData.transaction_uuid;
-            amt = decodedData.total_amount;
-          } catch (decodeError) {
-            console.error("Failed to decode eSewa response:", decodeError);
+            decodedData = JSON.parse(atob(dataParam));
+          } catch (firstError) {
+            try {
+              decodedData = JSON.parse(decodeURIComponent(dataParam));
+            } catch (secondError) {
+              console.error("Failed to decode eSewa response:", firstError, secondError);
+            }
+          }
+
+          if (!decodedData || typeof decodedData !== "object") {
+            console.error("eSewa data param is not valid JSON:", dataParam);
             setStatus("❌ Invalid payment response from eSewa");
             setIsVerifying(false);
             return;
           }
-        } else {
-          refId = searchParams.get("refId");
-          pid = searchParams.get("pid") || searchParams.get("txnId");
-          amt = searchParams.get("amt") || searchParams.get("total_amount");
-          bookingIds = searchParams.get("bookingIds");
-        }
 
+          refId = decodedData.transaction_code || decodedData.rid || decodedData.refId || decodedData.ref_id || decodedData.transaction_id || decodedData.oid;
+          pid = decodedData.transaction_uuid || decodedData.pid || decodedData.txnId || decodedData.txn_id || decodedData.txn || decodedData.transaction_code;
+          amt = decodedData.total_amount || decodedData.amt || decodedData.amount;
+          bookingIds = decodedData.bookingIds || decodedData.booking_ids || decodedData.bookingIdsString || decodedData.booking_ids_str;
+        } else { 
+          refId = searchParams.get("refId") || searchParams.get("rid") || searchParams.get("oid") || searchParams.get("transaction_id");
+          pid = searchParams.get("pid") || searchParams.get("txnId") || searchParams.get("txn_id");
+          amt = searchParams.get("amt") || searchParams.get("total_amount") || searchParams.get("amount");
+          bookingIds = searchParams.get("bookingIds");
+        } 
+ 
         const pendingTxn = JSON.parse(
           localStorage.getItem("pendingTransaction") || "{}"
         );
@@ -47,8 +57,26 @@ export default function EsewaCallbackPage() {
           return;
         }
 
+        const storedBookingIds = pendingTxn.bookingIds || bookingIds?.split(",").map(Number);
         const paymentAmount = amt || pendingTxn.amount;
 
+        console.log("eSewa callback params", {
+          dataParam,
+          refId,
+          pid,
+          amt,
+          bookingIds,
+          pendingTxn,
+          storedBookingIds,
+          paymentAmount,
+        });
+
+        if (!storedBookingIds || storedBookingIds.length === 0 || !paymentAmount) {
+          setStatus("❌ Payment session expired or booking data is missing. Please try again.");
+          setIsVerifying(false);
+          return;
+        }
+ 
         const verifyResponse = await fetch("/api/payments/verify-esewa", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -56,7 +84,7 @@ export default function EsewaCallbackPage() {
             refId,
             txnId: pid,
             amount: paymentAmount,
-            bookingIds: bookingIds || pendingTxn.bookingIds?.join(","),
+            bookingIds: storedBookingIds.join(","),
           }),
         });
 
@@ -64,21 +92,19 @@ export default function EsewaCallbackPage() {
 
         if (!verifyResponse.ok) {
           setStatus(
-            `❌ Payment verification failed: ${verifyData.message || "Unknown error"}`
+            `❌ Payment verification failed: ${verifyData.message || "Unknown error"}${verifyData.detail ? ` (${verifyData.detail})` : ""}`
           );
           setIsVerifying(false);
           return;
         }
-
+ 
         const confirmResponse = await fetch(
           "http://localhost:5001/bookings/confirm",
           {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              bookingIds: (bookingIds || pendingTxn.bookingIds)
-                ?.split(",")
-                .map(Number),
+              bookingIds: pendingTxn.bookingIds,
             }),
           }
         );
@@ -88,7 +114,7 @@ export default function EsewaCallbackPage() {
           setIsVerifying(false);
           return;
         }
-
+ 
         localStorage.removeItem("pendingTransaction");
 
         setStatus("✅ Payment successful! Redirecting...");
