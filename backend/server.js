@@ -261,6 +261,111 @@ app.get("/admin/users", verifyAdmin, (req, res) => {
   });
 });
 
+const verifyAdmin = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return res.status(401).json({ message: "No token" });
+
+  const token = authHeader.split(" ")[1];
+
+  try {
+    const decoded = jwt.verify(token, process.env.SECRET_KEY);
+    if (decoded.role !== "admin") return res.status(403).json({ message: "Admins only" });
+    req.user = decoded;
+    next();
+  } catch {
+    res.status(401).json({ message: "Invalid token" });
+  }
+};
+ 
+app.get("/admin/users", verifyAdmin, (req, res) => {
+  db.query("SELECT * FROM users", (err, results) => {
+    if (err) return res.status(500).json({ message: "Database error" });
+    res.json(results);
+  });
+});
+
+app.put("/admin/users/:id/role", verifyAdmin, (req, res) => {
+  const userId = req.params.id;
+  const { role } = req.body;
+  const allowedRoles = ["admin", "users"];
+
+  if (!allowedRoles.includes(role)) {
+    return res.status(400).json({ message: "Invalid role" });
+  }
+
+  db.query(
+    "UPDATE users SET role = ? WHERE id = ?",
+    [role, userId],
+    (err, result) => {
+      if (err) return res.status(500).json({ message: "Database error" });
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      res.json({ message: "User role updated" });
+    }
+  );
+});
+
+const handleBlockUser = (userId, reason, res) => {
+  if (!reason || !reason.toString().trim()) {
+    return res.status(400).json({ message: "Block reason is required." });
+  }
+
+  db.query(
+    "UPDATE users SET blocked = TRUE, blockedReason = ? WHERE id = ?",
+    [reason.trim(), userId],
+    (err, result) => {
+      if (err) return res.status(500).json({ message: "Database error" });
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      res.json({ message: "User blocked successfully" });
+    }
+  );
+};
+
+const handleUnblockUser = (userId, res) => {
+  db.query(
+    "UPDATE users SET blocked = FALSE, blockedReason = NULL WHERE id = ?",
+    [userId],
+    (err, result) => {
+      if (err) return res.status(500).json({ message: "Database error" });
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      res.json({ message: "User unblocked successfully" });
+    }
+  );
+};
+
+app.put("/admin/users/:id/block", verifyAdmin, (req, res) => {
+  handleBlockUser(req.params.id, req.body.reason, res);
+});
+
+app.post("/admin/users/:id/block", verifyAdmin, (req, res) => {
+  handleBlockUser(req.params.id, req.body.reason, res);
+});
+
+app.put("/admin/users/:id/unblock", verifyAdmin, (req, res) => {
+  handleUnblockUser(req.params.id, res);
+});
+
+app.post("/admin/users/:id/unblock", verifyAdmin, (req, res) => {
+  handleUnblockUser(req.params.id, res);
+});
+
+app.delete("/admin/users/:id", verifyAdmin, (req, res) => {
+  const userId = req.params.id;
+
+  db.query("DELETE FROM users WHERE id = ?", [userId], (err, result) => {
+    if (err) return res.status(500).json({ message: "Database error" });
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    res.json({ message: "User deleted" });
+  });
+});
+
 app.get("/services", (req, res) => {
   db.query(
     "SELECT * FROM services WHERE status = 'active'",
