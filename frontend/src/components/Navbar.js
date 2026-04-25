@@ -98,4 +98,73 @@ export default function Navbar({ onMenuClick }) {
     );
   };
 
+  return (
+    <>
+    <div className="fixed top-0 left-0 right-0 flex justify-between items-center bg-gray-100 px-6 py-4 shadow-md border-b h-20 z-50">
+ 
+      <div className="flex items-center gap-4">
+        {/* LOGO */} 
+        <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">
+          ✦ Singar Glow
+        </h1>
+      </div>
+ 
+      <div className="flex items-center gap-6">
+ 
+        <NotificationSystem userId={userId} userRole={userRole} /> 
+        <button
+          onClick={() => router.push("/chat")}
+          className="text-2xl"
+        >
+          💬
+        </button>
+ 
+        <div className="relative">
+          <button
+            onClick={() => {
+              setShowProfileMenu(!showProfileMenu);
+              setShowNotifications(false);
+            }}
+            className="flex items-center gap-2"
+          >
+            <img
+              src={user?.photoUrl || "/default-avatar.png"}
+              className="w-9 h-9 rounded-full border"
+              alt="profile"
+            />
+
+            <span className="hidden md:block font-medium text-gray-700">
+              {user?.fullName || "User"}
+            </span>
+          </button>
+
+          {showProfileMenu && (
+            <div className="absolute right-0 mt-3 w-44 bg-white border rounded-xl shadow-lg z-50">
+
+              <button
+                onClick={() => {
+                  router.push("/profile");
+                  setShowProfileMenu(false);
+                }}
+                className="w-full text-left px-4 py-2 hover:bg-gray-200 text-gray-700"
+              >
+                View Profile
+              </button>
+
+              <button
+                onClick={handleLogout}
+                className="w-full text-left px-4 py-2 hover:bg-gray-200 text-red-500"
+              >
+                Logout
+              </button>
+
+            </div>
+          )}
+        </div>
+
+      </div>
+    </div>
+    <ToastContainer />
+    </>
+  );
 }
