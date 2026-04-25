@@ -592,6 +592,38 @@ app.get("/admin/bookings", verifyAdmin, (req, res) => {
   );
 });
 
+app.get("/messages/unread-count", verifyUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const [result] = await db.promise().query(
+      "SELECT COUNT(*) AS unreadCount FROM messages WHERE receiverId = ? AND isRead = FALSE",
+      [userId]
+    );
+    res.json({ unreadCount: result[0]?.unreadCount || 0 });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+app.get("/admin/messages/unread-per-user", verifyAdmin, async (req, res) => {
+  try {
+    const adminId = req.user.id;
+    const [results] = await db.promise().query(
+      `SELECT senderId AS userId, COUNT(*) AS unreadCount
+       FROM messages WHERE receiverId = ? AND isRead = FALSE
+       GROUP BY senderId`,
+      [adminId]
+    );
+    const counts = {};
+    results.forEach(row => { counts[row.userId] = row.unreadCount; });
+    res.json(counts);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`);
   console.log(`Socket.io ready at http://localhost:${port}`);
