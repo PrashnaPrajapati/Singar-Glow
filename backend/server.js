@@ -534,6 +534,25 @@ app.put("/notifications/mark-all-read", verifyUser, async (req, res) => {
   }
 });
 
+app.get("/admin/messages/unread-per-user", verifyAdmin, async (req, res) => {
+  try {
+    const adminId = req.user.id;
+    const [results] = await db.promise().query(
+      `SELECT senderId AS userId, COUNT(*) AS unreadCount
+       FROM messages WHERE receiverId = ? AND isRead = FALSE
+       GROUP BY senderId`,
+      [adminId]
+    );
+    const counts = {};
+    results.forEach(row => { counts[row.userId] = row.unreadCount; });
+    res.json(counts);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`);
 });
