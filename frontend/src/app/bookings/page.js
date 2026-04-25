@@ -4,37 +4,43 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Sidebar from "@/components/Sidebar";
 import Footer from "@/components/Footer";
+import Navbar from "@/components/Navbar";
+import { getToken } from "@/lib/authStorage";
  
 export default function BookingsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const serviceIdFromQuery = Number(searchParams.get("serviceId") || 0);
+  const packageIdFromQuery = Number(searchParams.get("packageId") || 0);
 
+  const [isOpen, setIsOpen] = useState(false);
   const [services, setServices] = useState([]);
   const [packages, setPackages] = useState([]);
 
-  const [bookingType, setBookingType] = useState("service"); // service or package
+  const [bookingType, setBookingType] = useState(
+    packageIdFromQuery ? "package" : "service"
+  ); 
   const [selectedServices, setSelectedServices] = useState(
     serviceIdFromQuery ? [serviceIdFromQuery] : []
   );
-  const [selectedPackage, setSelectedPackage] = useState(null);
+  const [selectedPackage, setSelectedPackage] = useState(
+    packageIdFromQuery || null
+  );
 
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [notes, setNotes] = useState("");
-  const [locationType, setLocationType] = useState(""); // home or salon
+  const [locationType, setLocationType] = useState(""); 
   const [address, setAddress] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [bookedSlots, setBookedSlots] = useState([]);
   const [errorMessage, setErrorMessage] = useState("");
 
-  const token =
-    typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  const token = getToken();
 
   const timeSlots = ["09:00","10:00","11:00","12:00","14:00","15:00","16:00","17:00","18:00"];
-
-  // Fetch services and packages
+ 
   useEffect(() => {
     fetch("http://localhost:5001/services")
       .then((res) => res.json())
@@ -46,8 +52,7 @@ export default function BookingsPage() {
       .then((data) => setPackages(Array.isArray(data) ? data : []))
       .catch(() => setPackages([]));
   }, []);
-
-  // Fetch booked slots whenever date changes
+ 
   useEffect(() => {
     if (!date) return;
 
@@ -65,8 +70,9 @@ export default function BookingsPage() {
   };
 
   const handlePackageClick = (id) => {
-    setSelectedPackage(id === selectedPackage ? null : id);
-  };
+  if(packageIdFromQuery) return; 
+  setSelectedPackage(id === selectedPackage ? null : id);
+};
 
   const handleSubmit = async (e) => {
   e.preventDefault();
@@ -87,14 +93,17 @@ export default function BookingsPage() {
 
   try {
     const requestBody = {
-      package_id: bookingType === "package" ? selectedPackage : null,
-      service_ids: selectedServices.map(Number),
-      booking_date: date,
-      booking_time: time,
-      location_type: locationType,
-      address: locationType === "home" ? address.trim() : "",
-      notes: notes.trim(),
-    };
+  package_id: bookingType === "package" ? selectedPackage : null,
+  service_ids:
+    bookingType === "service"
+      ? selectedServices.map(Number)
+      : selectedPackageObject?.services.map((s) => s.id) || [],
+  booking_date: date,
+  booking_time: time,
+  location_type: locationType,
+  address: locationType === "home" ? address.trim() : "",
+  notes: notes.trim(),
+};
 
     const res = await fetch("http://localhost:5001/bookings", {
       method: "POST",
@@ -108,11 +117,12 @@ export default function BookingsPage() {
     const data = await res.json();
     if (!res.ok) return setErrorMessage(data.message || "Booking failed");
 
-    // Redirect to payment page with bookingIds and totalPrice
-    const bookingIdsParam = data.bookingIds ? data.bookingIds.join(",") : data.bookingId;
-    router.push(`/payments?bookingIds=${bookingIdsParam}&totalPrice=${totalPrice}`);
+    // Redirect to payments with booking IDs and total price
+    const bookingIds = data.bookingIds || [data.bookingId];
+    router.push(`/payments?bookingIds=${bookingIds.join(',')}&totalPrice=${totalPrice}`);
 
-    // Reset form (optional)
+ 
+ 
     setSelectedServices(serviceIdFromQuery ? [serviceIdFromQuery] : []);
     setSelectedPackage(null);
     setDate("");
@@ -126,8 +136,7 @@ export default function BookingsPage() {
   } finally {
     setLoading(false);
   }
-};
-
+}; 
   const selectedServiceObjects = services.filter((s) =>
     selectedServices.includes(s.id)
   );
@@ -148,8 +157,7 @@ export default function BookingsPage() {
           (sum, s) => sum + Number(String(s.duration).replace(/\D/g, "")),
           0
         ) || 0;
-
-  // Filter past slots if date is today
+ 
   const today = new Date();
   const selectedDate = new Date(date);
   const filteredTimeSlots = timeSlots.filter((slot) => {
@@ -163,32 +171,41 @@ export default function BookingsPage() {
   });
 
   return (
-    <div className="min-h-screen bg-[#fff7fa]">
-      <Sidebar />
-      <div className="flex flex-col min-h-screen md:ml-64">
+    <div className="min-h-screen bg-gray-50">
+      <Sidebar isOpen={isOpen} setIsOpen={setIsOpen} />
+      <div className={`flex flex-col min-h-screen ${isOpen ? "md:ml-70" : "pl-16 md:pl-8"}`}>
+      <Navbar />
+      <div className="flex flex-col min-h-screen pt-20">
         <main className="flex-1 p-8">
           <h1 className="text-3xl font-bold text-center mb-10 bg-clip-text text-transparent bg-gradient-to-r from-pink-500 to-purple-500">
             Book Your Appointment
           </h1>
 
-          <div className="max-w-7xl mx-auto flex gap-6 items-start justify-center">
-            {/* LEFT SIDE – Services / Packages */}
-            <div className="w-2/6">
-              {/* Toggle buttons */}
+          <div className="max-w-7xl mx-auto flex gap-6 items-start justify-center"> 
+            <div className="w-2/6"> 
               <div className="mb-4 flex gap-4">
                 <button
-                  onClick={() => setBookingType("service")}
-                  className={`px-4 py-2 rounded ${
-                    bookingType === "service"
-                      ? "bg-pink-500 text-white"
-                      : "bg-gray-200"
-                  }`}
-                >
-                  Services
+                    onClick={() => !packageIdFromQuery && setBookingType("service")}
+                    className={`px-4 py-2 rounded ${
+                      bookingType === "service"
+                        ? "bg-pink-500 text-white"
+                        : "bg-gray-200 text-gray-800"
+                    }`}
+                  >
+                    Services
+                  </button>
+                  <button
+                    onClick={() => !packageIdFromQuery && setBookingType("package")}
+                    className={`px-4 py-2 rounded ${
+                      bookingType === "package"
+                        ? "bg-pink-500 text-white"
+                        : "bg-gray-200 text-gray-800"
+                    }`}
+                  >
+                  Packages
                 </button>
               
-              </div>
-
+              </div> 
               <div className="grid grid-cols-1 gap-6">
                 {bookingType === "service" &&
                   services
@@ -220,51 +237,80 @@ export default function BookingsPage() {
                     ))}
 
                 {bookingType === "package" &&
-                  packages.map((p) => (
-                    <div
-                      key={p.id}
-                      onClick={() => handlePackageClick(p.id)}
-                      className={`p-5 rounded-xl border cursor-pointer transition-all duration-300 ${
-                        selectedPackage === p.id
-                          ? "border-pink-500 bg-gradient-to-r from-pink-100 to-purple-100 shadow-lg scale-[1.02]"
-                          : "bg-white border-gray-200 hover:shadow-md hover:scale-[1.01]"
-                      }`}
-                    >
-                      <h3 className="text-lg font-semibold text-gray-800 mb-1">{p.name}</h3>
-                      <p className="text-sm text-gray-600 mb-3">{p.description}</p>
-                      <div className="flex justify-between text-sm font-semibold text-pink-500">
-                        <span>Rs. {Number(p.price).toFixed(2)}</span>
-                        <span>{p.services.length} services</span>
-                      </div>
+                  packages
+                  .filter(p => packageIdFromQuery ? p.id === packageIdFromQuery : true)
+                  .map((p) => (
+                  <div
+                    key={p.id}
+                    onClick={() => !packageIdFromQuery && handlePackageClick(p.id)}
+                    className={`p-5 rounded-xl border cursor-pointer transition-all duration-300 ${
+                      selectedPackage === p.id
+                        ? "border-pink-500 bg-gradient-to-r from-pink-100 to-purple-100 shadow-lg scale-[1.02]"
+                        : "bg-white border-gray-200 hover:shadow-md hover:scale-[1.01]"
+                    }`}
+                  >
+                    <img
+                          src={
+                            p.image && p.image.startsWith("/")
+                              ? `http://localhost:5001${p.image}`
+                              : `http://localhost:5001/uploads/packages/${p.image}`
+                          }
+                          alt={p.name}
+                          className="w-full h-36 object-cover rounded mb-3"
+                        />
+
+                    <h3 className="text-lg font-semibold text-gray-800 mb-1">{p.name}</h3>
+                    <p className="text-sm text-gray-600 mb-3">{p.description}</p>
+                    <div className="flex justify-between text-sm font-semibold text-pink-500">
+                      <span>Rs. {Number(p.price).toFixed(2)}</span>
+                      <span>{p.services.length} services</span>
                     </div>
-                  ))}
+                  </div>
+                ))}
               </div>
             </div>
-
-            {/* MIDDLE SIDE – Booking Form */}
+ 
             <div className="w-2/6 bg-white p-6 rounded-xl shadow-lg sticky top-24">
               {errorMessage && (
                 <div className="mb-4 p-2 bg-red-100 text-red-700 rounded">{errorMessage}</div>
               )}
 
-              <h2 className="text-xl font-semibold mb-6 text-gray-800">Selected Services</h2>
+              <h2 className="text-xl font-semibold mb-6 text-gray-800">
+                {bookingType === "service" ? "Selected Services" : "Selected Package"}
+              </h2>
 
-              {selectedServiceObjects.length > 0 ? (
-                <ul className="mb-6 text-gray-700 space-y-1">
-                  {selectedServiceObjects.map((s) => (
-                    <li key={s.id} className="flex justify-between">
-                      <span>{s.name}</span>
-                      <span>Rs. {Number(s.price).toFixed(2)}</span>
+              {bookingType === "service" ? (
+                selectedServiceObjects.length > 0 ? (
+                  <ul className="mb-6 text-gray-700 space-y-1">
+                    {selectedServiceObjects.map((s) => (
+                      <li key={s.id} className="flex justify-between">
+                        <span>{s.name}</span>
+                        <span>Rs. {Number(s.price).toFixed(2)}</span>
+                      </li>
+                    ))}
+                    <li className="font-semibold flex justify-between pt-2 border-t border-gray-300">
+                      <span>Total:</span>
+                      <span>Rs. {totalPrice.toFixed(2)}</span>
                     </li>
-                  ))}
+                  </ul>
+                ) : (
+                  <p className="mb-6 text-gray-500">No service selected</p>
+                )
+              ) : selectedPackageObject ? (
+                <ul className="mb-6 text-gray-700 space-y-1">
+                  <li className="flex justify-between">
+                    <span>{selectedPackageObject.name}</span>
+                    <span>Rs. {Number(selectedPackageObject.price).toFixed(2)}</span>
+                  </li>
+
                   <li className="font-semibold flex justify-between pt-2 border-t border-gray-300">
                     <span>Total:</span>
-                    <span>Rs. {totalPrice.toFixed(2)}</span>
+                    <span>Rs. {Number(selectedPackageObject.price).toFixed(2)}</span>
                   </li>
                 </ul>
-              ) : bookingType === "service" ? (
-                <p className="mb-6 text-gray-500">No service selected</p>
-              ) : null}
+              ) : (
+                <p className="mb-6 text-gray-500">No package selected</p>
+              )}
 
               <form>
                 <fieldset className="mb-6">
@@ -310,12 +356,12 @@ export default function BookingsPage() {
                   <input
                     type="date"
                     value={date}
+                    min={new Date().toISOString().split('T')[0]}
                     onChange={(e) => setDate(e.target.value)}
                     className="w-full p-2 border border-gray-300 rounded text-gray-700"
                   />
                 </div>
-
-                {/* TIME SLOT BUTTONS */}
+ 
                 <div className="mb-6">
                   <label className="block mb-3 text-gray-700 font-semibold">Choose a Time Slot</label>
                   <div className="grid grid-cols-4 gap-3">
@@ -355,8 +401,7 @@ export default function BookingsPage() {
                 </div>
               </form>
             </div>
-
-            {/* RIGHT SIDE – Booking Summary */}
+ 
             <form
               onSubmit={handleSubmit}
               className="w-2/6 bg-white p-6 rounded-xl shadow-lg sticky top-24"
@@ -365,13 +410,15 @@ export default function BookingsPage() {
 
               <div className="text-gray-700 space-y-3 mb-6">
                 <div className="flex justify-between">
-                  <span>Service</span>
+                  <span>Service / Package</span>
                   <span className="font-semibold">
                     {bookingType === "service"
                       ? selectedServiceObjects.length > 0
                         ? selectedServiceObjects.map((s) => s.name).join(", ")
                         : "-"
-                      : selectedPackageObject?.name || "-"}
+                      : selectedPackageObject
+                      ? selectedPackageObject.name
+                      : "-"}
                   </span>
                 </div>
 
@@ -404,9 +451,17 @@ export default function BookingsPage() {
 
               <hr className="mb-6 border-gray-300" />
 
+              {/* Total Price */}
               <div className="flex justify-between text-lg font-bold text-pink-500 mb-6">
                 <span>Total</span>
-                <span>Rs. {totalPrice.toFixed(2)}</span>
+                <span>
+              Rs.{" "}
+              {bookingType === "service"
+                ? totalPrice.toFixed(2)
+                : selectedPackageObject
+                ? Number(selectedPackageObject.price).toFixed(2)
+                : "0.00"}
+            </span>
               </div>
 
               <button
@@ -422,14 +477,14 @@ export default function BookingsPage() {
                 }
                 className="w-full py-2 text-white rounded-full bg-gradient-to-r from-pink-500 to-purple-500 hover:scale-105 transition"
               >
-                {loading ? "Booking..." : "Proceed to Payment"}
+                {loading ? "Booking..." : "Confirm Booking"}
               </button>
             </form>
           </div>
-        </main>
-
+        </main> 
         <Footer />
       </div>
+    </div>
     </div>
   );
 } 
