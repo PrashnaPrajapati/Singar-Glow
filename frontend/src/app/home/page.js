@@ -1,26 +1,50 @@
 'use client';
 
+import { apiUrl } from "@/lib/apiConfig";
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Button from "@/components/Button";
 import Logo from "@/components/Logo";
 import Footer from "@/components/Footer";
 import Image from "next/image";
+import { toast } from "react-toastify";
+import { clearAuthSession, getValidToken } from "@/lib/authStorage";
+
+const DEFAULT_SERVICE_IMAGE = "/beauty.webp";
 
 export default function HomePage() {
+  const router = useRouter();
   const [services, setServices] = useState([]);
   const [page, setPage] = useState(0);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [loadingServices, setLoadingServices] = useState(true);
   const itemsPerPage = 4; 
 
   useEffect(() => {
+    const token = getValidToken();
+    setIsLoggedIn(Boolean(token));
+  }, []);
+
+  useEffect(() => {
     async function fetchServices() {
+      setLoadingServices(true);
       try {
-        const res = await fetch("http://localhost:5001/services", { cache: "no-store" });
+        const res = await fetch(apiUrl("/services"), { cache: "no-store" });
         if (!res.ok) return setServices([]);
         const data = await res.json();
-        setServices(data.map(s => ({ ...s, image: `http://localhost:5001${s.image}` })));
+        setServices(
+          data.map((service) => ({
+            ...service,
+            image: service.image
+              ? apiUrl(`${service.image}`)
+              : DEFAULT_SERVICE_IMAGE,
+          }))
+        );
       } catch {
         setServices([]);
+      } finally {
+        setLoadingServices(false);
       }
     }
     fetchServices();
@@ -36,18 +60,18 @@ export default function HomePage() {
 
   const steps = [
     { 
-      icon: "💄", 
+      icon: "\u{1F484}",
       title: "Choose Service", 
       desc: "Browse and select your desired beauty service" 
     },
     { 
-      icon: "📆", 
+      icon: "\u{1F4C6}",
       title: "Pick Location & Time", 
       desc: "Choose between home service or salon visit and select your preferred time" 
 
     },
     { 
-      icon: "✨", 
+      icon: "\u{2728}",
       title: "Relax & Enjoy", 
       desc: "Our experts take care of everything" 
 
@@ -55,6 +79,43 @@ export default function HomePage() {
   ];
 
   const visibleServices = services.slice(page * itemsPerPage, (page + 1) * itemsPerPage);
+  const bookNowHref = isLoggedIn ? "/services" : "/signup";
+
+  const handleLogout = () => {
+    toast(
+      ({ closeToast }) => (
+        <div className="flex flex-col gap-3">
+          <p>Are you sure you want to logout?</p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                clearAuthSession();
+                setIsLoggedIn(false);
+                router.push("/login");
+                closeToast();
+              }}
+              className="bg-pink-500 text-white px-4 py-2 rounded hover:bg-pink-600"
+            >
+              Yes, Logout
+            </button>
+            <button
+              type="button"
+              onClick={closeToast}
+              className="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ),
+      {
+        autoClose: false,
+        closeButton: false,
+        closeOnClick: false,
+      }
+    );
+  };
 
   return (
     <div className="bg-[#fff7fa] text-gray-800">
@@ -62,17 +123,37 @@ export default function HomePage() {
       <header className="sticky top-0 z-50 bg-white/90 backdrop-blur shadow-sm">
 
         <div className="max-w-7xl mx-auto px-6 py-1 flex justify-between items-center"> 
-          <Link href="/" className="scale-75 origin-left">
+          <Link href="/home" className="scale-75 origin-left">
             <Logo />
           </Link>
 
           <nav className="flex items-center gap-6 text-sm">
-            <Link href="/login" className="hover:text-pink-500 font-bold">
-              Login
-            </Link>
-            <Link href="/signup">
-              <Button className="py-2 text-sm">Sign Up</Button>
-            </Link>
+            {isLoggedIn ? (
+              <>
+                <Link href="/services" className="hover:text-pink-500 font-bold">
+                  Services
+                </Link>
+                <Link href="/profile" className="hover:text-pink-500 font-bold">
+                  Profile
+                </Link>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="hover:text-pink-500 font-bold"
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <>
+                <Link href="/login" className="hover:text-pink-500 font-bold">
+                  Login
+                </Link>
+                <Link href="/signup">
+                  <Button className="py-2 text-sm">Sign Up</Button>
+                </Link>
+              </>
+            )}
           </nav>
         </div>
       </header>
@@ -87,8 +168,8 @@ export default function HomePage() {
           Choose from makeup, hair, massage, nails and more.
         </p>
 
-        <Link href="/signup"> 
-          <Button>Book Now</Button>
+        <Link href={bookNowHref}> 
+          <Button>Explore Services</Button>
         </Link>
       </section>
 
@@ -102,11 +183,14 @@ export default function HomePage() {
           </p>
 
           <div className="flex justify-center gap-6 overflow-x-auto py-4">
-            {visibleServices.length > 0 ? 
+            {loadingServices ? (
+              <p className="text-gray-500">Loading services...</p>
+            ) : visibleServices.length > 0 ? (
             visibleServices.map((service, i) => (
-              <div 
+              <Link
+                href={`/services/details/${service.id}`}
                 key={service.id || i} 
-                className="min-w-[250px] max-w-[250px] bg-white rounded-2xl shadow-xl hover:shadow-[0_6px_10px_-2px_rgba(236,72,153,0.5),0_4px_6px_-1px_rgba(236,72,153,0.08)] overflow-hidden transition"
+                className="min-w-[250px] max-w-[250px] bg-white rounded-2xl shadow-xl hover:shadow-[0_6px_10px_-2px_rgba(236,72,153,0.5),0_4px_6px_-1px_rgba(236,72,153,0.08)] overflow-hidden transition block"
               >
                 <div className="aspect-square w-full relative">
                   <Image 
@@ -124,15 +208,16 @@ export default function HomePage() {
                   <p className="text-sm text-gray-500 mb-4">
                     {service.description}
                   </p>
-                  
-                  <Link href="/signup">
-                  <Button className="py-2 text-sm">Book Now</Button>
-                  </Link>
+                  <span className="inline-block text-sm font-semibold text-pink-500 hover:text-purple-500">
+                    View Details
+                  </span>
+                   
                 </div>
-              </div>
-            )) : 
-            <p className="text-gray-500">No services available</p>
-            }
+              </Link>
+            ))
+            ) : (
+              <p className="text-gray-500">No services available</p>
+            )}
           </div>
 
           <div className="flex justify-center gap-4 mt-6">
@@ -191,7 +276,7 @@ export default function HomePage() {
               Book your first service today and experience beauty like never before
               </p>
             
-            <Link href="/signup">
+            <Link href={bookNowHref}>
               <Button>Get Started Now</Button>
               </Link>
           </div>
