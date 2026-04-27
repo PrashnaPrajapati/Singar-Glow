@@ -19,4 +19,6 @@ const TextInput = forwardRef(({ icon: Icon, label, error, ...props }, ref) => {
   );
 });
 
+TextInput.displayName = "TextInput";
+
 export default TextInput;
