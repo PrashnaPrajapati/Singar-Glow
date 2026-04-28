@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { apiUrl } from "@/lib/apiConfig";
+import { Suspense, useState, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import Button from "@/components/Button";
 
-export default function ResetPasswordPage() {
+function ResetPasswordContent() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [message, setMessage] = useState(null);
@@ -24,7 +25,8 @@ export default function ResetPasswordPage() {
 
   if (!token)
     return <p className="text-center mt-20 text-red-600">Invalid password reset link.</p>;
-    const validatePassword = () => {
+ 
+  const validatePassword = () => {
     const regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/;
 
     if (!newPassword) {
@@ -65,11 +67,12 @@ export default function ResetPasswordPage() {
     if (!validateConfirmPassword()) {
       confirmPasswordRef.current?.focus();
       return;
-    } 
+    }
+
     setLoading(true);
 
-    try {
-      const res = await fetch("http://localhost:5001/reset-password", {
+    try { 
+      const res = await fetch(apiUrl("/reset-password"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, newPassword }),
@@ -77,7 +80,7 @@ export default function ResetPasswordPage() {
 
       const data = await res.json();
 
-      if (res.ok) {
+      if (res.ok) { 
         setMessage(data.message || "Password reset successfully!");
         setTimeout(() => router.push("/login"), 3000);
       } else {
@@ -87,14 +90,16 @@ export default function ResetPasswordPage() {
       setError("Server error. Please try again later.");
     } finally {
       setLoading(false);
-    }
-  }; 
+    } 
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-pink-50 px-8 py-12">
       <div className="max-w-md w-full bg-white rounded-lg shadow p-8">
         <h2 className="text-3xl font-bold text-center text-gray-900 mb-2">Set New Password</h2>
 
         <form onSubmit={handleReset} className="space-y-4">
+          {/* New Password */}
           <div className="relative">
             <input
               ref={newPasswordRef}
@@ -105,19 +110,21 @@ export default function ResetPasswordPage() {
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
-                  if (validatePassword()) {
+                  if (validatePassword()) { 
                     confirmPasswordRef.current?.focus();
                   }
                 }
               }}
-              className="w-full p-3 border border-gray-300 rounded focus:outline-pink-500 text-gray-900 placeholder-gray-400"/>
+              className="w-full p-3 border border-gray-300 rounded focus:outline-pink-500 text-gray-900 placeholder-gray-400"
+            />
             <span
               className="absolute right-3 top-3 cursor-pointer"
-              onClick={() => setShowPassword(!showPassword)}>
+              onClick={() => setShowPassword(!showPassword)}
+            >
               {showPassword ? <EyeOff /> : <Eye />}
             </span>
           </div>
-
+ 
           <div className="relative">
             <input
               ref={confirmPasswordRef}
@@ -137,12 +144,20 @@ export default function ResetPasswordPage() {
 
           {error && <p className="text-red-600 text-sm">{error}</p>}
           {message && <p className="text-green-600 text-sm">{message}</p>}
-
+  
           <Button type="submit" fullWidth disabled={loading}>
             {loading ? "Resetting..." : "Reset Password"}
           </Button>
         </form>
       </div>
     </div>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-pink-50" />}>
+      <ResetPasswordContent />
+    </Suspense>
   );
 }
