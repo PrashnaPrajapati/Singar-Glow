@@ -1,5 +1,7 @@
 import { jwtDecode } from "jwt-decode";
 
+const LOGIN_CREDENTIALS_KEY = "savedLoginCredentials";
+
 export function getToken() {
   if (typeof window === "undefined") return null;
   return localStorage.getItem("token") || sessionStorage.getItem("token");
@@ -45,6 +47,35 @@ export function setAuthSession(token, role, rememberMe) {
 
   secondaryStorage.removeItem("token");
   secondaryStorage.removeItem("role");
+}
+
+export function getSavedLoginCredentials() {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const savedCredentials = localStorage.getItem(LOGIN_CREDENTIALS_KEY);
+    return savedCredentials ? JSON.parse(savedCredentials) : null;
+  } catch {
+    localStorage.removeItem(LOGIN_CREDENTIALS_KEY);
+    return null;
+  }
+}
+
+export function setSavedLoginCredentials(email, password) {
+  if (typeof window === "undefined") return;
+
+  localStorage.setItem(
+    LOGIN_CREDENTIALS_KEY,
+    JSON.stringify({
+      email,
+      password,
+    })
+  );
+}
+
+export function clearSavedLoginCredentials() {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(LOGIN_CREDENTIALS_KEY);
 }
 
 export function clearAuthSession() {
