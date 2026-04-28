@@ -1,44 +1,73 @@
+"use client";
+
+import { apiUrl } from "@/lib/apiConfig";
+import { useState } from "react";
 import { FcGoogle } from "react-icons/fc";
 import { signIn, getSession } from "next-auth/react";
+import { setAuthSession } from "@/lib/authStorage";
 
 export default function GoogleButton() {
+  const [loading, setLoading] = useState(false);
+
+  const waitForSession = async () => {
+    const maxAttempts = 10;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const session = await getSession();
+      if (session?.user?.email) return session;
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
+    return null;
+  };
 
   const handleGoogleLogin = async () => {
-    await signIn("google", { redirect: false });
+    if (loading) return;
+    setLoading(true);
 
-    const session = await getSession();
-    if (!session) return;
+    try {
+      const signInResult = await signIn("google", { redirect: false });
+      if (signInResult?.error) {
+        throw new Error("Google sign-in failed");
+      }
 
-    const res = await fetch("http://localhost:5001/google-login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        email: session.user.email,
-      }),
-    });
+      const session = await waitForSession();
+      if (!session?.user?.email) {
+        throw new Error("Google session not found");
+      }
 
-    const data = await res.json();
+      const res = await fetch(apiUrl("/google-login"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: session.user.email,
+        }),
+      });
 
-    if (res.ok) {
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("role", data.user.role);
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.message || "Google login failed");
+      }
 
-      window.location.href = "/dashboard";
-    } else {
+      setAuthSession(data.token, data.user.role, true);
+      window.location.assign("/services");
+    } catch (error) {
+      console.error(error);
       alert("Google login failed");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <button
       onClick={handleGoogleLogin}
+      disabled={loading}
       className="w-full border p-3 rounded-lg flex items-center justify-center gap-2 
-        hover:bg-gray-100 transition text-gray-800 font-medium"
+        hover:bg-gray-100 transition text-gray-800 font-medium disabled:opacity-70 disabled:cursor-not-allowed"
     >
       <FcGoogle size={20} />
-      Continue with Google
+      {loading ? "Signing in..." : "Continue with Google"}
     </button>
   );
 } 
