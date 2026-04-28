@@ -1,72 +1,157 @@
 "use client";
 
+import { apiUrl } from "@/lib/apiConfig";
 import { useEffect, useState } from "react";
+import Footer from "@/components/Footer"; 
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 import Sidebar from "@/components/Sidebar";
-import Footer from "@/components/Footer";
+import Navbar from "@/components/Navbar";
+import Button from "@/components/Button";
+import { getToken } from "@/lib/authStorage";
+import {
+  CalendarCheck,
+  CalendarClock,
+  CheckCircle2,
+  Clock,
+  CreditCard,
+  MapPin,
+  ReceiptText,
+  RotateCcw,
+  Star,
+  Wallet,
+  XCircle,
+} from "lucide-react";
+ 
+function parseJwt(token) {
+  try {
+    return JSON.parse(atob(token.split(".")[1]));
+  } catch (e) {
+    console.error("Invalid token", e);
+    return null;
+  }
+}
 
 export default function UserDashboard() {
-  const [bookings, setBookings] = useState([]);
+  const [isOpen, setIsOpen] = useState(false);
+  const [bookings, setBookings] = useState({ upcoming: [], completed: [], cancelled: [] });
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState(null);
+  const [userId, setUserId] = useState(null); 
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState("upcoming");
+ 
+  const [user, setUser] = useState(null);
+  const [paymentSummary, setPaymentSummary] = useState({
+    totalSpent: 0,
+    count: 0,
+    payments: [],
+  });
+  const [paymentsLoading, setPaymentsLoading] = useState(true);
+
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [currentBooking, setCurrentBooking] = useState(null);
+ 
+  const [newDate, setNewDate] = useState("");
+  const [newTime, setNewTime] = useState("");
+  const [newLocation, setNewLocation] = useState("");
+  const [homeAddress, setHomeAddress] = useState(""); 
+  const [reason, setReason] = useState(""); 
+  const [bookedSlots, setBookedSlots] = useState([]);
+ 
+  const [reasonCustom, setReasonCustom] = useState("");
+ 
+  const [rating, setRating] = useState(0);
+  const [reviewText, setReviewText] = useState("");
+
+  const timeSlots = ["09:00","10:00","11:00","12:00","14:00","15:00","16:00","17:00","18:00"];
 
   useEffect(() => {
+  if (!token) return;
+
+  fetch(apiUrl("/profile"), {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  })
+    .then((res) => res.json())
+    .then((data) => setUser(data))
+    .catch(() => setUser(null));
+}, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+
+    setPaymentsLoading(true);
+    fetch(apiUrl("/payments/history"), {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((data) => {
+        setPaymentSummary({
+          totalSpent: Number(data.totalSpent) || 0,
+          count: Number(data.count) || 0,
+          payments: Array.isArray(data.payments) ? data.payments : [],
+        });
+      })
+      .catch(() => {
+        setPaymentSummary({ totalSpent: 0, count: 0, payments: [] });
+      })
+      .finally(() => setPaymentsLoading(false));
+  }, [token]);
+ 
+  useEffect(() => {
     setMounted(true);
-    const t = localStorage.getItem("token");
+    const t = getToken();
     setToken(t);
 
     if (!t) {
       setLoading(false);
       return;
     }
+ 
+    const decoded = parseJwt(t);
+    if (decoded && decoded.id) setUserId(decoded.id);
 
-    fetch("http://localhost:5001/bookings/my", {
-      headers: {
-        Authorization: `Bearer ${t}`,
-      },
+    fetch(apiUrl("/bookings/my"), {
+      headers: { Authorization: `Bearer ${t}` },
     })
       .then(async (res) => {
-        const text = await res.text();
-        try {
-          const data = JSON.parse(text);
-          console.log("API Response:", data);
+        const data = await res.json();
+        const groupedBookings = data.reduce((acc, booking) => {
+          const status = booking.status.toLowerCase();
+          if (!acc[status]) acc[status] = [];
+          const existing = acc[status].some((item) => item.id === booking.id);
+          if (!existing) {
+            acc[status].push({
+              id: booking.id,
+              booking_date: booking.booking_date,
+              booking_time: booking.booking_time,
+              status: booking.status,
+              address: booking.address,
+              location_type: booking.location_type || "salon",
+              services: booking.package_id
+                ? [{ name: booking.package_name, price: booking.package_price }]
+                : [{ name: booking.service_name, price: booking.service_price }],
 
-          const groupedBookings = data.reduce((acc, booking) => {
-            const existingBooking = acc.find(b => b.id === booking.id);
-            if (existingBooking) {
-              existingBooking.services.push({
-                name: booking.service,
-                price: booking.price
-              });
-              existingBooking.total_amount += booking.price;
-            } else {
-              acc.push({
-                id: booking.id,
-                booking_date: booking.booking_date,
-                booking_time: booking.booking_time,
-                status: booking.status,
-                address: booking.address,
-                services: [{
-                  name: booking.service,
-                  price: booking.price,
-                }],
-                total_amount: booking.price,
-              });
-            }
-            return acc;
-          }, []);
+              total_amount: booking.package_id
+                ? booking.package_price
+                : booking.service_price,
+              review_submitted: booking.feedback_submitted || false,
+            });
+          }
+          return acc;
+        }, { upcoming: [], completed: [], cancelled: [] });
 
-          setBookings(groupedBookings);  
-        } catch (e) {
-          console.error("API did not return JSON:", text);
-          setBookings([]);
-        }
+        setBookings(groupedBookings);
         setLoading(false);
       })
-      .catch((err) => {
-        console.error(err);
-        setBookings([]);
+      .catch(() => {
+        setBookings({ upcoming: [], completed: [], cancelled: [] });
         setLoading(false);
       });
   }, []);
@@ -74,98 +159,634 @@ export default function UserDashboard() {
   if (!mounted) return null;
   if (!token) return <p className="p-6 text-red-500">You must be logged in.</p>;
 
-  const filteredBookings = bookings.filter(
-    (b) => b.status.toLowerCase() === activeTab
-  );
+  const filteredBookings = bookings[activeTab];
+  const dashboardStats = [
+    {
+      label: "Upcoming",
+      value: bookings.upcoming.length,
+      icon: CalendarClock,
+      tone: "bg-blue-50 text-blue-700",
+    },
+    {
+      label: "Completed",
+      value: bookings.completed.length,
+      icon: CheckCircle2,
+      tone: "bg-emerald-50 text-emerald-700",
+    },
+    {
+      label: "Cancelled",
+      value: bookings.cancelled.length,
+      icon: XCircle,
+      tone: "bg-red-50 text-red-700",
+    },
+    {
+      label: "Spent",
+      value: `Rs. ${paymentSummary.totalSpent.toLocaleString()}`,
+      icon: Wallet,
+      tone: "bg-rose-50 text-rose-700",
+    },
+  ];
 
+  const statusClasses = {
+    upcoming: "bg-blue-50 text-blue-700 border-blue-100",
+    completed: "bg-emerald-50 text-emerald-700 border-emerald-100",
+    cancelled: "bg-red-50 text-red-700 border-red-100",
+  };
+ 
+  const openRescheduleModal = (booking) => {
+    setCurrentBooking(booking);
+    setNewDate(booking.booking_date.split("T")[0]);
+    setNewTime(booking.booking_time);
+    setNewLocation(booking.location_type || "salon");
+    setHomeAddress(booking.location_type === "home" ? booking.address : "");
+    setReason("");
+    setBookedSlots([]);
+    setShowRescheduleModal(true);
+
+    fetch(apiUrl(`/bookings/booked-slots?date=${booking.booking_date.split("T")[0]}`))
+      .then(res => res.json())
+      .then(data => setBookedSlots(data))
+      .catch(() => setBookedSlots([]));
+  };
+
+  const handleReschedule = async () => {
+    if (!currentBooking) return;
+
+    if (!newDate || !newTime || !newLocation) return alert("Please select date, time, and location");
+    if (newLocation === "home" && (!homeAddress || homeAddress.trim() === "")) {
+      return alert("Please enter your home address for home service");
+    }
+
+    const body = {
+      booking_date: newDate,
+      booking_time: newTime,
+      location_type: newLocation,
+      address: newLocation === "home" ? homeAddress : "salon",
+      reason: newLocation === "home" ? null : reason || null,
+    };
+
+    try {
+      const res = await fetch(apiUrl(`/bookings/${currentBooking.id}/reschedule`), {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      const data = await res.json();
+      if (!res.ok) return toast.error(data.message || "Reschedule failed");
+ 
+      setBookings(prev => ({
+        ...prev,
+        [activeTab]: prev[activeTab].map(b =>
+          b.id === currentBooking.id
+            ? { ...b, booking_date: newDate, booking_time: newTime, address: body.address, location_type: newLocation }
+            : b
+        ),
+      }));
+
+      setShowRescheduleModal(false);
+      setHomeAddress("");
+      setReason("");
+    } catch (err) {
+      console.error(err);
+      alert("Something went wrong");
+    }
+  };
+ 
+  const openCancelModal = (booking) => {
+    setCurrentBooking(booking);
+    setReason("");
+    setReasonCustom("");
+    setShowCancelModal(true);
+  };
+
+  const handleCancel = async (cancelReason) => {
+    if (!currentBooking) return;
+
+    try {
+      const res = await fetch(apiUrl(`/bookings/${currentBooking.id}/cancel`), {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ reason: cancelReason || null }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) return alert(data.message || "Cancel failed");
+ 
+      setBookings(prev => {
+        const updatedBookings = { ...prev };
+        updatedBookings.cancelled = updatedBookings.cancelled.filter((b) => b.id !== currentBooking.id);
+        updatedBookings.cancelled.push({ ...currentBooking, status: "cancelled" });
+        updatedBookings[activeTab] = updatedBookings[activeTab].filter(b => b.id !== currentBooking.id);
+        return updatedBookings;
+      });
+
+      setShowCancelModal(false);
+      setReason("");
+      setReasonCustom("");
+    } catch (err) {
+      console.error(err);
+      alert("Something went wrong");
+    }
+  };
+ 
+  const openReviewModal = (booking) => {
+    setCurrentBooking(booking);
+    setRating(0);
+    setReviewText("");
+    setShowReviewModal(true);
+  };
+
+  const handleSubmitReview = async () => {
+    if (!currentBooking) return;
+    if (!userId) {
+      toast.error("User not logged in");
+      return;
+    }
+    if (rating === 0 || reviewText.trim() === "") {
+      toast.error("Please provide a rating and review.");
+      return;
+    }
+
+    try {
+      const res = await fetch(apiUrl(`/bookings/${currentBooking.id}/review`), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ userId, rating, review: reviewText }),
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        toast.error(data?.message || "Review submission failed");
+        return;
+      }
+
+      setBookings(prev => ({
+        ...prev,
+        completed: prev.completed.map(b =>
+          b.id === currentBooking.id
+            ? { ...b, review_submitted: true }
+            : b
+        ),
+      }));
+
+      setShowReviewModal(false);
+      setRating(0);
+      setReviewText("");
+      toast.success("Thank you for your review!");
+    } catch (err) {
+      console.error(err);
+      toast.error("Something went wrong. Please try again.");
+    }
+  };
+ 
   return (
-    <div className="min-h-screen bg-[#fff7fa]">
-      <Sidebar />
+    <div className="min-h-screen bg-[#fffaf7]">
+      <Sidebar isOpen={isOpen} setIsOpen={setIsOpen} />
+      <div className={`flex flex-col min-h-screen ${isOpen ? "md:ml-70" : "pl-16 md:pl-8"}`}>
+      <Navbar />
+      <div className="flex flex-col min-h-screen pt-20">
+        <main className="flex-1 px-4 py-8 sm:px-6">
+          <div className="mx-auto max-w-7xl">
+            <section className="mb-8 rounded-lg border border-rose-100 bg-white p-6 shadow-sm">
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <p className="text-sm font-bold uppercase tracking-wider text-rose-600">
+                    Dashboard
+                  </p>
+                  <h1 className="mt-2 text-3xl font-bold text-gray-950 md:text-4xl">
+                    Hi, {user?.fullName || "User"}
+                  </h1>
+                  <p className="mt-3 max-w-2xl text-gray-600">
+                    View your bookings, reschedule upcoming appointments, cancel when needed, and leave reviews after completed services.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:min-w-[560px]">
+                  {dashboardStats.map((stat) => {
+                    const StatIcon = stat.icon;
 
-     
-      <div className="flex flex-col min-h-screen md:ml-64">
-        <main className="flex-1 p-6">
-          <h1 className="text-3xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-pink-500 to-purple-500">
-            My Dashboard
-          </h1>
+                    return (
+                      <div key={stat.label} className="rounded-lg border border-rose-100 bg-[#fffaf7] p-4">
+                        <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-lg ${stat.tone}`}>
+                          <StatIcon size={20} />
+                        </div>
+                        <p className="text-2xl font-bold text-gray-950">{stat.value}</p>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                          {stat.label}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </section>
 
-          <div className="flex gap-6 mb-6 border-b border-gray-200">
-            {["upcoming", "completed", "cancelled"].map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`pb-2 font-semibold transition-colors ${
-                  activeTab === tab
-                    ? "border-b-2 border-pink-500 text-pink-500"
-                    : "text-gray-500 hover:text-pink-500"
-                } capitalize`}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-
-          {loading ? (
-            <p className="text-gray-500">Loading your bookings...</p>
-          ) : filteredBookings.length === 0 ? (
-            <p className="text-gray-500">No {activeTab} bookings found.</p>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredBookings.map((b) => (
-                <div
-                  key={b.id}
-                  className="bg-white p-5 rounded-xl shadow hover:shadow-lg transition relative"
-                >
-                  <span
-                    className={`absolute top-3 right-3 px-3 py-1 text-sm font-semibold rounded-full ${
-                      b.status === "upcoming"
-                        ? "bg-blue-100 text-blue-600"
-                        : b.status === "completed"
-                        ? "bg-green-100 text-green-600"
-                        : "bg-red-100 text-red-600"
+            <section className="mb-6 flex flex-col gap-4 rounded-lg border border-rose-100 bg-white p-4 shadow-sm md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-sm font-bold uppercase tracking-wider text-rose-600">
+                  My Bookings
+                </p>
+                <h2 className="mt-1 text-xl font-bold text-gray-950">
+                  {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} appointments
+                </h2>
+              </div>
+              <div className="grid grid-cols-3 rounded-lg border border-rose-200 bg-[#fffaf7] p-1">
+                {["upcoming", "completed", "cancelled"].map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`rounded-md px-4 py-2 text-sm font-semibold capitalize transition ${
+                      activeTab === tab
+                        ? "bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-sm"
+                        : "text-gray-600 hover:bg-white hover:text-rose-700"
                     }`}
                   >
-                    {b.status.charAt(0).toUpperCase() + b.status.slice(1)}
-                  </span>
-
-                  <h2 className="text-lg font-semibold text-gray-800 mb-1">
-                    {b.services.map((service) => service.name).join(", ")} 
-                  </h2>
-
-                  <p className="text-gray-500 text-sm mb-2">Booking ID: {b.id}</p>
-
-                  <div className="text-gray-600 text-sm space-y-1 mb-4">
-                    <p>
-                      <strong className="mr-1">📅 Date & Time:</strong>
-                      {b.booking_date} at {b.booking_time}
-                    </p>
-                    <p>
-                      <strong className="mr-1">📍 Location:</strong>
-                      {b.address || "Salon"}
-                    </p>
-                    <p className="font-semibold text-pink-500">
-                      Total Amount: ₹{b.total_amount} {/* Show total amount */}
-                    </p>
+                    {tab}
+                  </button>
+                ))}
+              </div>
+            </section>
+ 
+          {loading ? (
+            <div className="rounded-lg border border-rose-100 bg-white p-10 text-center text-gray-500 shadow-sm">
+              Loading your bookings...
+            </div>
+          ) : filteredBookings.length === 0 ? (
+            <div className="rounded-lg border border-rose-100 bg-white p-10 text-center shadow-sm">
+              <CalendarCheck className="mx-auto mb-4 text-rose-500" size={34} />
+              <p className="font-semibold text-gray-900">No {activeTab} bookings found.</p>
+              <p className="mt-2 text-sm text-gray-500">
+                Your {activeTab} appointments will appear here.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+              {filteredBookings.map((b, index) => (
+                <article
+                  key={`${b.id}-${activeTab}-${index}`}
+                  className="rounded-lg border border-rose-100 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:border-rose-200 hover:shadow-lg"
+                >
+                  <div className="mb-4 flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                        Booking ID: {b.id}
+                      </p>
+                      <h3 className="mt-2 text-lg font-semibold text-gray-950">
+                        {b.package_id
+                          ? `Package: ${b.services[0].name}`
+                          : b.services.map((s) => s.name).join(", ")
+                        }
+                      </h3>
+                    </div>
+                    <span className={`shrink-0 rounded-full border px-3 py-1 text-xs font-semibold capitalize ${statusClasses[b.status?.toLowerCase()] || "bg-gray-50 text-gray-600 border-gray-100"}`}>
+                      {b.status.charAt(0).toUpperCase() + b.status.slice(1)}
+                    </span>
                   </div>
 
+                  <div className="space-y-3 rounded-lg bg-[#fffaf7] p-4 text-sm text-gray-600">
+                    <p className="flex items-center gap-2">
+                      <CalendarCheck size={16} className="text-rose-600" />
+                      {b.booking_date.split("T")[0]}
+                    </p>
+                    <p className="flex items-center gap-2">
+                      <Clock size={16} className="text-rose-600" />
+                      {b.booking_time}
+                    </p>
+                    <p className="flex items-center gap-2">
+                      <MapPin size={16} className="text-rose-600" />
+                      {b.address || "Salon"}
+                    </p>
+                    <div className="flex items-center justify-between border-t border-rose-100 pt-3">
+                      <span className="inline-flex items-center gap-2">
+                        <ReceiptText size={16} className="text-rose-600" />
+                        Total
+                      </span>
+                      <span className="font-bold text-gray-950">Rs. {b.total_amount}</span>
+                    </div>
+                  </div>
+ 
                   {b.status === "upcoming" && (
-                    <div className="flex gap-2">
-                      <button className="flex-1 py-2 px-3 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded hover:scale-105 transition">
+                    <div className="mt-5 flex gap-2">
+                      <Button onClick={() => openRescheduleModal(b)} className="flex flex-1 items-center justify-center gap-2 py-2">
+                        <RotateCcw size={16} />
                         Reschedule
-                      </button>
-                      <button className="flex-1 py-2 px-3 bg-red-100 text-red-600 rounded hover:scale-105 transition">
+                      </Button>
+                      <button onClick={() => openCancelModal(b)} className="flex-1 rounded-lg bg-red-50 px-3 py-2 font-semibold text-red-600 transition hover:bg-red-100">
                         Cancel
                       </button>
                     </div>
                   )}
-                </div>
+ 
+                  {b.status === "completed" && !b.review_submitted && (
+                    <div className="mt-5 flex gap-2">
+                      <Button onClick={() => openReviewModal(b)} className="flex flex-1 items-center justify-center gap-2 py-2">
+                        <Star size={16} />
+                        Leave Review
+                      </Button>
+                    </div>
+                  )}
+                </article>
               ))}
             </div>
           )}
-        </main>
+            <section className="mt-8 rounded-lg border border-rose-100 bg-white p-6 shadow-sm">
+              <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                <div>
+                  <p className="text-sm font-bold uppercase tracking-wider text-rose-600">
+                    Payment History
+                  </p>
+                  <h2 className="mt-1 text-xl font-bold text-gray-950">
+                    Past payment records
+                  </h2>
+                </div>
+                <div className="rounded-lg bg-[#fffaf7] px-4 py-3 text-right">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Total spent
+                  </p>
+                  <p className="text-2xl font-bold text-gray-950">
+                    Rs. {paymentSummary.totalSpent.toLocaleString()}
+                  </p>
+                </div>
+              </div>
 
+              {paymentsLoading ? (
+                <div className="rounded-lg bg-[#fffaf7] p-6 text-center text-gray-500">
+                  Loading payment history...
+                </div>
+              ) : paymentSummary.payments.length === 0 ? (
+                <div className="rounded-lg bg-[#fffaf7] p-6 text-center">
+                  <CreditCard className="mx-auto mb-3 text-rose-500" size={30} />
+                  <p className="font-semibold text-gray-900">No payment records yet.</p>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Completed payments will appear here after checkout.
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-hidden rounded-lg border border-rose-100">
+                  <div className="hidden grid-cols-[1.4fr_1fr_0.8fr_0.8fr] gap-4 bg-[#fffaf7] px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-500 md:grid">
+                    <span>Transaction</span>
+                    <span>Booking</span>
+                    <span>Status</span>
+                    <span className="text-right">Amount</span>
+                  </div>
+                  <div className="divide-y divide-rose-100">
+                    {paymentSummary.payments.slice(0, 5).map((payment) => (
+                      <article
+                        key={payment.id || payment.transaction_id}
+                        className="grid gap-3 px-4 py-4 md:grid-cols-[1.4fr_1fr_0.8fr_0.8fr] md:items-center"
+                      >
+                        <div>
+                          <p className="font-semibold text-gray-950">
+                            {payment.transaction_id || payment.reference_id || `Payment ${payment.id}`}
+                          </p>
+                          <p className="mt-1 text-xs text-gray-500">
+                            {payment.created_at
+                              ? new Date(payment.created_at).toLocaleDateString()
+                              : "Date unavailable"}
+                          </p>
+                        </div>
+                        <p className="text-sm text-gray-600">
+                          {payment.items || `Booking ${payment.booking_ids}`}
+                        </p>
+                        <span className="w-fit rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold capitalize text-emerald-700">
+                          {payment.status || "completed"}
+                        </span>
+                        <p className="font-bold text-gray-950 md:text-right">
+                          Rs. {Number(payment.amount || 0).toLocaleString()}
+                        </p>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </section>
+          </div>
+ 
+          {showRescheduleModal && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+              <div className="bg-white p-6 rounded-xl w-96 max-h-[90vh] overflow-y-auto">
+                <h2 className="text-gray-800 text-lg font-bold mb-4">Reschedule Booking</h2>
+
+                <label className="text-gray-700 block mb-2">New Date</label>
+                <input
+                  type="date"
+                  value={newDate}                  
+                  min={new Date().toISOString().split('T')[0]}                  
+                  onChange={(e) => {
+                    setNewDate(e.target.value);
+                    fetch(apiUrl(`/bookings/booked-slots?date=${e.target.value}`))
+                      .then(res => res.json())
+                      .then(data => setBookedSlots(data))
+                      .catch(() => setBookedSlots([]));
+                  }}
+                  className=" text-gray-700 w-full mb-3 p-2 border rounded"
+                />
+
+                <label className="block mb-3 text-gray-700 font-semibold">Choose a Time Slot</label>
+                <div className="grid grid-cols-3 gap-2 mb-4">
+                  {timeSlots.map((slot) => {
+                    const isBooked = bookedSlots.includes(slot) && slot !== currentBooking.booking_time;
+                    return (
+                      <button
+                        key={slot}
+                        type="button"
+                        disabled={isBooked}
+                        onClick={() => setNewTime(slot)}
+                        className={`flex items-center justify-center gap-2 border rounded-lg py-2 text-sm transition
+                          ${isBooked
+                            ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                            : newTime === slot
+                            ? "bg-pink-500 text-white border-pink-500"
+                            : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
+                          }`}
+                      >
+                        â° {slot} {isBooked && "âŒ"}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <fieldset className="mb-4">
+                  <legend className="mb-2 font-semibold text-gray-800">Service Location</legend>
+                  <label className="flex items-center gap-2 text-gray-800 mb-2">
+                    <input
+                      type="radio"
+                      value="salon"
+                      checked={newLocation === "salon"}
+                      onChange={(e) => setNewLocation(e.target.value)}
+                      className="w-4 h-4 accent-pink-500"
+                    />
+                    Visit Salon
+                  </label>
+
+                  <label className="flex items-center gap-2 text-gray-800">
+                    <input
+                      type="radio"
+                      value="home"
+                      checked={newLocation === "home"}
+                      onChange={(e) => setNewLocation(e.target.value)}
+                      className="w-4 h-4 accent-pink-500"
+                    />
+                    Home Service
+                  </label>
+                </fieldset>
+
+                {newLocation === "home" && (
+                  <div className="mb-4">
+                    <label className="block mb-1 text-gray-700">Enter your home address</label>
+                    <input
+                      type="text"
+                      value={homeAddress}
+                      onChange={(e) => setHomeAddress(e.target.value)}
+                      placeholder="Enter your home address"
+                      className="w-full p-2 border border-gray-300 rounded text-gray-700"
+                    />
+                  </div>
+                )}
+
+                <div className="flex gap-3 mt-4">
+                  <button
+                    onClick={handleReschedule}
+                    className="flex-1 py-2 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded hover:scale-105 transition"
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={() => setShowRescheduleModal(false)}
+                    className="flex-1 py-2 bg-gray-300 text-gray-700 rounded hover:scale-105 transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+ 
+           {showCancelModal && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+              <div className="bg-white p-6 rounded-xl w-96 max-h-[90vh] overflow-y-auto">
+                <h2 className="text-gray-800 text-lg font-bold mb-4">Cancel Booking</h2>
+                <p className="text-gray-700 mb-3">Are you sure you want to cancel this booking?</p>
+
+                <label className="text-gray-700 block mb-2 font-semibold">Select a Reason</label>
+                <div className="grid grid-cols-1 gap-2 mb-3">
+                  {[
+                    "Selected wrong service",
+                    "Change of plans",
+                    "Need to change date/location",
+                    "Emergency/personal reasons",
+                    "Service no longer needed",
+                    "Found another salon",
+                    "Other",
+                  ].map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => setReason(r)}
+                      className={`w-full text-left py-2 px-3 border rounded-lg transition
+                        ${reason === r
+                          ? "bg-gradient-to-r from-pink-500 to-purple-500 text-white border-pink-400"
+                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
+                        }`}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+
+                {reason === "Other" && (
+                  <div className="mb-3">
+                    <textarea
+                      value={reasonCustom}
+                      onChange={(e) => setReasonCustom(e.target.value)}
+                      placeholder="Type your reason here"
+                      className="w-full p-2 border rounded text-gray-700"
+                      rows={3}
+                    />
+                  </div>
+                )}
+
+                <div className="flex gap-3 mt-4">
+                  <button
+                    onClick={() => handleCancel(reason === "Other" ? reasonCustom : reason)}
+                    className="flex-1 py-2 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded hover:scale-105 transition"
+                  >
+                    Confirm Cancel
+                  </button>
+                  
+                  <button
+                    onClick={() => setShowCancelModal(false)}
+                    className="flex-1 py-2 bg-gray-300 text-gray-700 rounded hover:scale-105 transition"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+ 
+          {showReviewModal && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+              <div className="bg-white p-6 rounded-xl w-96 max-h-[90vh] overflow-y-auto">
+                <h2 className="text-gray-800 text-lg font-bold mb-4">Leave Review</h2>
+
+                <p className="text-gray-700 mb-2">Rate your experience:</p>
+                <div className="flex gap-1 mb-4">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      onClick={() => setRating(star)}
+                      className={`w-8 h-8 text-xl flex items-center justify-center rounded-full ${
+                        rating >= star
+                          ? "bg-yellow-400"
+                          : "bg-gray-300"
+                      } cursor-pointer`}
+                    >
+                      â˜…
+                    </button>
+                  ))}
+                </div>
+
+                <textarea
+                  value={reviewText}
+                  onChange={(e) => setReviewText(e.target.value)}
+                  placeholder="Your review..."
+                  className="w-full p-2 border rounded text-gray-700 mb-4"
+                  rows={4}
+                />
+
+                <div className="flex gap-3 mt-4">
+                  <button
+                    onClick={handleSubmitReview}
+                    className="flex-1 py-2 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded hover:scale-105 transition"
+                  >
+                    Submit Review
+                  </button>
+                  <button
+                    onClick={() => setShowReviewModal(false)}
+                    className="flex-1 py-2 bg-gray-300 text-gray-700 rounded hover:scale-105 transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </main>
         <Footer />
+        <ToastContainer position="top-center" />
       </div>
     </div>
+    </div>
+
   );
 }

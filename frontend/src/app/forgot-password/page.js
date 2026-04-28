@@ -1,5 +1,6 @@
 "use client";
 
+import { apiUrl } from "@/lib/apiConfig";
 import { useState } from "react";
 import Button from "@/components/Button";
 
@@ -22,18 +23,18 @@ export default function ForgotPasswordPage() {
 
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:5001/forgot-password", {
+      const res = await fetch(apiUrl("/forgot-password"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email: email.trim() }),
       });
 
+      const data = await res.json();
+
       if (res.ok) {
-        const data = await res.json();
-        setMessage("If the email is registered, you will receive reset instructions.");
+        setMessage(data.message || "Reset instructions sent. Please check your email.");
         setToken(data.token);
-      } else {
-        const data = await res.json();
+      } else { 
         setError(data.message || "Something went wrong.");
       }
     } catch (err) {

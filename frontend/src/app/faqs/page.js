@@ -1,4 +1,5 @@
 import SupportPageLayout from "@/components/SupportPageLayout";
+import { HelpCircle } from "lucide-react";
 
 const faqs = [
   {
@@ -40,18 +41,39 @@ export default function FaqsPage() {
       title="FAQs"
       description="Quick answers to common questions about browsing, booking, payments, services, packages, and account access."
     >
+      <div className="mb-10 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="text-sm font-bold uppercase tracking-wider text-rose-600">
+            Common Questions
+          </p>
+          <h2 className="mt-2 text-3xl font-bold text-gray-950">
+            Answers before you book
+          </h2>
+        </div>
+        <p className="max-w-xl text-sm leading-6 text-gray-600">
+          Quick guidance for browsing services, booking appointments, managing payments, and getting support.
+        </p>
+      </div>
+
       <div className="grid gap-5 md:grid-cols-2">
         {faqs.map((faq) => (
           <article
             key={faq.question}
-            className="rounded-xl border border-pink-200 bg-white p-6 shadow-sm"
+            className="rounded-lg border border-rose-100 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:border-rose-200 hover:shadow-lg"
           >
-            <h2 className="text-lg font-semibold text-gray-900">
-              {faq.question}
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-gray-600">
-              {faq.answer}
-            </p>
+            <div className="flex gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-rose-50 text-rose-600">
+                <HelpCircle size={22} />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-950">
+                  {faq.question}
+                </h3>
+                <p className="mt-3 text-sm leading-6 text-gray-600">
+                  {faq.answer}
+                </p>
+              </div>
+            </div>
           </article>
         ))}
       </div>
