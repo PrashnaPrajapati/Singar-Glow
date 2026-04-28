@@ -1,5 +1,6 @@
 "use client";
 
+import { apiUrl } from "@/lib/apiConfig";
 import Link from "next/link";
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
@@ -7,9 +8,10 @@ import Logo from "@/components/Logo";
 import TextInput from "@/components/TextInput";
 import PasswordInput from "@/components/PasswordInput";
 import Button from "@/components/Button";
+import GoogleButton from "@/components/GoogleButton"; 
 import { User, Phone, Mail } from "lucide-react";
-import { ToastContainer, toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import { toast } from "react-toastify";
+import { notify } from "@/lib/notify";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -63,28 +65,29 @@ export default function SignupPage() {
   };
 
   const validateEmail = () => {
-  const trimmed = email.trim(); 
+  const trimmed = email.trim();
+ 
   const allowedProviders = [
     "gmail", "yahoo", "hotmail", "outlook", "icloud",
     "aol", "protonmail", "zoho", "gmx", "mail"
   ];
-
+ 
   const allowedTLDs = [
     "com", "edu", "io", "org", "net", "co", "gov",
     "in", "ai", "app", "dev"
   ];
-
+ 
   const regex = new RegExp(
     `^[a-zA-Z0-9._%+-]+@(${allowedProviders.join("|")})\\.(${allowedTLDs.join("|")})$`,
-    "i" 
+    "i"  
   );
-
+ 
   if (!trimmed) {
     setErrors(prev => ({ ...prev, email: "Email is required." }));
     emailRef.current?.focus();
     return false;
   }
-
+ 
   if (!regex.test(trimmed)) {
     setErrors(prev => ({
       ...prev,
@@ -93,10 +96,10 @@ export default function SignupPage() {
     emailRef.current?.focus();
     return false;
   }
-
+ 
   setErrors(prev => ({ ...prev, email: "" }));
   return true;
-};
+}; 
 
   const validatePassword = () => {
     const trimmed = password.trim();
@@ -126,9 +129,7 @@ export default function SignupPage() {
 
   setErrors(prev => ({ ...prev, confirmPassword: "" }));
   return true;
-};
-
-
+}; 
   const validateGender = () => {
     if (!gender) {
       setErrors(prev => ({ ...prev, gender: "Please select a gender." }));
@@ -165,7 +166,7 @@ export default function SignupPage() {
     const finalGender = gender === "other" ? otherGender.trim() : gender;
 
     try {
-      const res = await fetch("http://localhost:5001/signup", {
+      const res = await fetch(apiUrl("/signup"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -181,15 +182,13 @@ export default function SignupPage() {
 
       if (!res.ok) {
         toast.dismiss(creatingToastId);
-        toast.error(data.message || "Signup failed", {
-          position: "top-center", 
-        });
+        notify.error(data.message || "Signup failed");
         setLoading(false);
         return;
       } 
      
       toast.update(creatingToastId, {
-        render: "Account Created Successfully!",
+        render: data.message || "Account created. Please verify your email before logging in.",
         type: "success", 
         hideProgressBar: false,
         closeOnClick: true,
@@ -197,17 +196,12 @@ export default function SignupPage() {
         draggable: true,
       });
 
-      
-      setTimeout(() => {
-        router.push("/login");
-      }, 2000);
+      router.push("/login");
 
     } catch (err) {
       console.error(err);
       toast.dismiss(creatingToastId);
-      toast.error("Something went wrong. Please try again.", {
-        position: "top-center", 
-      });
+      notify.error("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -215,17 +209,7 @@ export default function SignupPage() {
 
   return (
     <div className="min-h-screen flex bg-white">
-      <ToastContainer 
-      position ="top-center" 
-      hideProgressBar={false}
-      newestOnTop={false} 
-      closeOnClick
-      rtl={false}
-      pauseOnFocusLoss
-      draggable
-      pauseOnHover
-      /> 
-      <div className="hidden md:block w-1/2">
+      <div className="hidden md:block w-1/2"> 
         <img
           src="/signup.png"
           
@@ -233,11 +217,11 @@ export default function SignupPage() {
         />
       </div> 
       <div className="w-full md:w-1/2 flex items-center justify-center bg-pink-50 px-8 py-12">
-        <div className="w-full max-w-md"> 
-          <Logo /> 
+        <div className="w-full max-w-md">
+          <Logo />
           <h2 className="text-2xl font-bold text-center text-gray-800 mb-2">
             Create Account
-          </h2> 
+          </h2>
           <p className="text-center text-gray-500 mt-1 mb-6">
             Join us and start your beauty journey
           </p>
@@ -301,7 +285,7 @@ export default function SignupPage() {
               error={errors.email}
               disabled={loading}
             />
-
+ 
             <PasswordInput
               ref={passwordRef}
               placeholder="Create a password"
@@ -320,7 +304,7 @@ export default function SignupPage() {
               error={errors.password}
               disabled={loading}
             />
-
+ 
             <PasswordInput
               ref={confirmPasswordRef}
               placeholder="Confirm your password"
@@ -339,7 +323,7 @@ export default function SignupPage() {
               error={errors.confirmPassword}
               disabled={loading}
             />
-
+ 
             <div>
               <label className="text-sm font-medium text-gray-700">Gender</label>
               <div className="flex items-center gap-5 mt-2">
@@ -377,13 +361,22 @@ export default function SignupPage() {
               {loading ? "Creating Account..." : "Create Account"}
             </Button>
 
+            <div className="flex items-center my-2">
+              <hr className="flex-grow border-gray-300" />
+              <span className="mx-3 text-gray-500 text-sm">
+                Or continue with
+              </span>
+              <hr className="flex-grow border-gray-300" />
+            </div>
+
+            <GoogleButton />
+
             <div className="text-center text-sm mt-4 text-gray-500">
             Already have an account?{" "}
-            <Link href="/login" className="text-pink-500 font-medium">
+            <Link href="/login" className="text-pink-500 font-semibold ml-1">
               Login
             </Link>
-          </div>
-
+          </div> 
           </form>
         </div>
       </div>
