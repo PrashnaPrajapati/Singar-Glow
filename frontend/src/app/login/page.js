@@ -1,25 +1,44 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { apiUrl } from "@/lib/apiConfig";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Logo from "@/components/Logo";
 import TextInput from "@/components/TextInput";
 import PasswordInput from "@/components/PasswordInput";
 import Button from "@/components/Button";
 import GoogleButton from "@/components/GoogleButton";
+import Link from "next/link";
+import {
+  clearSavedLoginCredentials,
+  getSavedLoginCredentials,
+  setAuthSession,
+  setSavedLoginCredentials,
+} from "@/lib/authStorage";
 import { Mail } from "lucide-react";
-import { ToastContainer, toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import { notify } from "@/lib/notify";
 
 export default function LoginPage() {
-  const router = useRouter(); 
+  const router = useRouter();
+
   const emailRef = useRef(null);
   const passwordRef = useRef(null);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [errors, setErrors] = useState({});
+  const [rememberMe, setRememberMe] = useState(false);
+  const [errors, setErrors] = useState({}); 
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const savedCredentials = getSavedLoginCredentials();
+
+    if (savedCredentials?.email && savedCredentials?.password) {
+      setEmail(savedCredentials.email);
+      setPassword(savedCredentials.password);
+      setRememberMe(true);
+    }
+  }, []);
  
   const validateEmail = () => {
   const trimmed = email.trim();
@@ -80,17 +99,19 @@ const regex = new RegExp(
   e.preventDefault();
 
   if (!validateEmail()) return;   
-  if (!validatePassword()) return;  
+  if (!validatePassword()) return; 
+
 
   setLoading(true);
 
   try {
-    const res = await fetch("http://localhost:5001/login", {
+    const res = await fetch(apiUrl("/login"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         email: email.trim(),
         password: password.trim(),
+        rememberMe,
       }),
     });
 
@@ -98,9 +119,7 @@ const regex = new RegExp(
 
     if (!res.ok) {
 
-  toast.error(data.message || "Login failed", {
-    position: "top-center", 
-  });
+  notify.error(data.message || "Login failed");
 
   if (data.message === "User not found") {
     setErrors({ email: "No account found with this email." });
@@ -114,34 +133,34 @@ const regex = new RegExp(
   return;
 }
     if (res.ok) {
-  localStorage.setItem("token", data.token);
-  localStorage.setItem("role", data.user.role);
+  setAuthSession(data.token, data.user.role, rememberMe);
+  if (rememberMe) {
+    setSavedLoginCredentials(email.trim(), password.trim());
+  } else {
+    clearSavedLoginCredentials();
+  }
 
-  toast.success(`Welcome, ${data.user.fullName}`, {
-    position: "top-center", 
-  });
+  notify.success(`Welcome, ${data.user.fullName}`);
 
   setTimeout(() => {
     if (data.user.role === "admin") {
       router.replace("/admin/dashboard");
     } else {
-      router.replace("/dashboard");
+      router.replace("/services");
     }
-  },1000);
+  },);
 }
 
   } catch (err) {
-    toast.error("Server error. Please try again.", {
-      position: "top-center", 
-    });
+    notify.error("Server error. Please try again.");
   } finally {
     setLoading(false);
   }
 };
- 
+
+
   return (
-    <div className="min-h-screen flex bg-white">
-      <ToastContainer /> 
+    <div className="min-h-screen flex bg-white"> 
       <div className="hidden md:block w-1/2">
         <img
           src="/login.png"
@@ -150,16 +169,16 @@ const regex = new RegExp(
         />
       </div> 
       <div className="w-full md:w-1/2 flex items-center justify-center bg-pink-50 px-8 py-12">
-        <div className="w-full max-w-md"> 
+        <div className="w-full max-w-md">
           <Logo />
 
           <h2 className="text-3xl font-bold text-center text-gray-900 mb-2">
             Welcome Back
-          </h2> 
+          </h2>
           <p className="text-center text-gray-400 mb-8">
             Login to continue your beauty journey
           </p>
- 
+
           <form className="space-y-6" onSubmit={handleLogin}> 
             <TextInput
               ref={emailRef}
@@ -167,6 +186,7 @@ const regex = new RegExp(
               placeholder="Enter your email"
               icon={Mail}
               value={email}
+              autoComplete="email"
               onChange={(e) => setEmail(e.target.value)}
               onBlur={validateEmail}
               onKeyDown={(e) => {
@@ -176,26 +196,42 @@ const regex = new RegExp(
                 }
               }}
               error={errors.email}
-              disabled={loading}/> 
-
+              disabled={loading}
+            />
+ 
             <PasswordInput
               ref={passwordRef}
               label="Password"
               placeholder="Enter your password"
               value={password}
+              autoComplete="current-password"
               onChange={(e) => setPassword(e.target.value)}
               onBlur={validatePassword}
               error={errors.password}
-              disabled={loading}/>
+              disabled={loading}
+            />
 
-            <p className="text-right text-sm text-pink-500 hover:underline">
-              <a href="/forgot-password">Forgot Password?</a>
-            </p>
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 text-sm text-gray-600">
+                <input
+                  type="checkbox"
+                  className="accent-pink-500"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  disabled={loading}
+                />
+                Remember me
+              </label>
+              <p className="text-right text-sm text-pink-500 hover:underline">
+                <Link href="/forgot-password">Forgot Password?</Link>
+              </p>
+            </div>
 
             <Button
               type="submit"
               fullWidth
-              disabled={loading}>
+              disabled={loading}
+            >
               {loading ? "Logging in..." : "Login"}
             </Button>
           </form>
@@ -206,17 +242,18 @@ const regex = new RegExp(
               Or continue with
             </span>
             <hr className="flex-grow border-gray-300" />
-          </div> 
-          <GoogleButton /> 
+          </div>
+
+          <GoogleButton />
 
           <p className="text-center text-sm mt-6 text-gray-500">
-            Don’t have an account?
-            <a href="/signup" className="text-pink-600 font-semibold ml-1">
+            Don&apos;t have an account?
+            <Link href="/signup" className="text-pink-500 font-semibold ml-1">
               Sign Up
-            </a>
+            </Link>
           </p>
-        </div> 
+        </div>
       </div>
-    </div> 
+    </div>
   );
 }
