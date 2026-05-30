@@ -3,7 +3,8 @@
 import { apiUrl } from "@/lib/apiConfig";
 import { getValidToken } from "@/lib/authStorage";
 import { getEsewaPaymentUrl, normalizeEsewaAmount } from "@/lib/esewa";
-import { CalendarDays, CheckCircle2, Clock3, CreditCard, MapPin } from "lucide-react";
+import { CalendarDays, CheckCircle2, Clock3, CreditCard, MapPin, PlusCircle, X } from "lucide-react";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { io } from "socket.io-client";
@@ -14,6 +15,8 @@ import Sidebar from "@/components/Sidebar";
 const timeSlots = ["09:00", "10:00", "11:00", "12:00", "14:00", "15:00", "16:00", "17:00", "18:00"];
 const salonAddress = "Singar Glow Salon";
 const homeServiceRate = 0.1;
+const defaultServiceImage = "/beauty.webp";
+const customServicePageSize = 12;
 
 function formatDateLabel(value) {
   if (!value) return "-";
@@ -25,7 +28,7 @@ function formatDateLabel(value) {
   });
 }
 
-function BookingStep({ number, label, active, complete }) {
+function BookingStep({ number, label, active, complete, isLast = false }) {
   return (
     <div className="flex flex-1 items-center gap-2 sm:flex-none sm:gap-6">
       <div className="flex min-w-0 flex-col items-center gap-2 sm:gap-3">
@@ -40,7 +43,7 @@ function BookingStep({ number, label, active, complete }) {
         </div>
         <span className={`text-center text-xs font-semibold sm:text-base ${active ? "text-gray-950" : "text-gray-500"}`}>{label}</span>
       </div>
-      {number < 3 && (
+      {!isLast && (
         <div className={`mb-7 h-1 flex-1 sm:mb-9 sm:w-24 ${complete ? "bg-pink-500" : "bg-gray-200"}`} />
       )}
     </div>
@@ -48,7 +51,12 @@ function BookingStep({ number, label, active, complete }) {
 }
 
 function BookingSummary({ item, date, time, locationType, total, duration, bookingType }) {
-  const itemLabel = bookingType === "package" ? "Package" : "Service";
+  const itemLabel =
+    bookingType === "package"
+      ? "Package"
+      : bookingType === "custom"
+        ? "Custom Services"
+        : "Service";
 
   return (
     <aside className="rounded-lg border border-rose-100 bg-white p-7 shadow-sm">
@@ -58,6 +66,19 @@ function BookingSummary({ item, date, time, locationType, total, duration, booki
           <span className="text-gray-500">{itemLabel}</span>
           <span className="text-right font-bold text-gray-950">{item?.name || "-"}</span>
         </div>
+        {bookingType === "custom" && item?.services?.length > 0 && (
+          <div className="rounded-lg bg-rose-50 p-4 text-sm text-gray-700">
+            <p className="mb-2 font-bold text-gray-950">Selected services</p>
+            <div className="space-y-2">
+              {item.services.map((service) => (
+                <div key={service.id} className="flex justify-between gap-4">
+                  <span>{service.name}</span>
+                  <span className="font-semibold">Rs. {Number(service.price || 0).toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="flex justify-between gap-6">
           <span className="text-gray-500">Duration</span>
           <span className="font-bold text-gray-950">{duration ? `${duration} min` : "-"}</span>
@@ -107,6 +128,7 @@ function BookingsContent() {
   const router = useRouter();
   const serviceIdFromQuery = Number(searchParams.get("serviceId") || 0);
   const packageIdFromQuery = Number(searchParams.get("packageId") || 0);
+  const isCustomBooking = searchParams.get("custom") === "1";
 
   const [isOpen, setIsOpen] = useState(false);
   const [services, setServices] = useState([]);
@@ -120,14 +142,16 @@ function BookingsContent() {
   const [notes, setNotes] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("esewa");
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [selectedCustomServiceIds, setSelectedCustomServiceIds] = useState([]);
+  const [customServicePage, setCustomServicePage] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState(""); 
+  const [errorMessage, setErrorMessage] = useState("");
   const socketRef = useRef(null);
   const dateRef = useRef("");
   const heldSlotRef = useRef(null);
 
   const token = getValidToken();
-  const bookingType = packageIdFromQuery ? "package" : "service";
+  const bookingType = packageIdFromQuery ? "package" : isCustomBooking ? "custom" : "service";
 
   const releaseHeldSlot = useCallback(() => {
     const heldSlot = heldSlotRef.current;
@@ -220,12 +244,42 @@ function BookingsContent() {
     };
   }, [date]);
 
+  const selectedCustomServices = useMemo(
+    () => services.filter((service) => selectedCustomServiceIds.includes(Number(service.id))),
+    [selectedCustomServiceIds, services]
+  );
+  const visibleCustomServices = useMemo(
+    () => services.slice(
+      customServicePage * customServicePageSize,
+      (customServicePage + 1) * customServicePageSize
+    ),
+    [customServicePage, services]
+  );
+  const totalCustomServicePages = Math.ceil(services.length / customServicePageSize);
+  const hasNextCustomServicePage = customServicePage < totalCustomServicePages - 1;
+  const hasPreviousCustomServicePage = customServicePage > 0;
+
   const selectedItem = useMemo(() => {
+    if (bookingType === "custom") {
+      return selectedCustomServices.length
+        ? {
+            id: "custom",
+            name: `${selectedCustomServices.length} custom service${selectedCustomServices.length === 1 ? "" : "s"}`,
+            price: selectedCustomServices.reduce((sum, service) => sum + Number(service.price || 0), 0),
+            duration: selectedCustomServices.reduce(
+              (sum, service) => sum + (Number(String(service.duration || "").replace(/\D/g, "")) || 0),
+              0
+            ),
+            services: selectedCustomServices,
+          }
+        : null;
+    }
+
     if (bookingType === "package") {
       return packages.find((item) => item.id === packageIdFromQuery);
     }
     return services.find((item) => item.id === serviceIdFromQuery);
-  }, [bookingType, packageIdFromQuery, packages, serviceIdFromQuery, services]);
+  }, [bookingType, packageIdFromQuery, packages, selectedCustomServices, serviceIdFromQuery, services]);
 
   const duration = useMemo(() => {
     if (!selectedItem) return 0;
@@ -238,6 +292,8 @@ function BookingsContent() {
   const basePrice = Number(selectedItem?.price || 0);
   const homeServiceCharge = locationType === "home" ? basePrice * homeServiceRate : 0;
   const totalPrice = basePrice + homeServiceCharge;
+  const getServiceImage = (service) =>
+    service?.image ? apiUrl(`${service.image}`) : defaultServiceImage;
 
   const todayValue = new Date().toISOString().split("T")[0];
   const filteredTimeSlots = timeSlots.filter((slot) => {
@@ -337,7 +393,11 @@ function BookingsContent() {
     setErrorMessage("");
 
     if (!selectedItem) {
-      setErrorMessage("Please choose a valid service first.");
+      setErrorMessage(
+        bookingType === "custom"
+          ? "Please choose at least one service for your custom booking."
+          : "Please choose a valid service first."
+      );
       return;
     }
 
@@ -356,7 +416,12 @@ function BookingsContent() {
     try {
       const requestBody = {
         package_id: bookingType === "package" ? packageIdFromQuery : null,
-        service_ids: bookingType === "service" ? [serviceIdFromQuery] : [],
+        service_ids:
+          bookingType === "custom"
+            ? selectedCustomServiceIds
+            : bookingType === "service"
+              ? [serviceIdFromQuery]
+              : [],
         booking_date: date,
         booking_time: time,
         location_type: locationType,
@@ -391,8 +456,27 @@ function BookingsContent() {
     }
   };
 
-  const canGoNextFromStepOne = Boolean(date && time);
-  const canGoNextFromStepTwo = Boolean(locationType && (locationType !== "home" || address.trim()));
+  const serviceStep = bookingType === "custom" ? 1 : null;
+  const dateTimeStep = bookingType === "custom" ? 2 : 1;
+  const locationStep = bookingType === "custom" ? 3 : 2;
+  const confirmStep = bookingType === "custom" ? 4 : 3;
+
+  const canGoNextFromServices = bookingType !== "custom" || selectedCustomServiceIds.length > 0;
+  const canGoNextFromDateTime = Boolean(date && time);
+  const canGoNextFromLocation = Boolean(locationType && (locationType !== "home" || address.trim()));
+  const canGoNext =
+    (bookingType === "custom" && step === serviceStep && canGoNextFromServices) ||
+    (step === dateTimeStep && canGoNextFromDateTime) ||
+    (step === locationStep && canGoNextFromLocation);
+
+  const toggleCustomService = (serviceId) => {
+    setSelectedCustomServiceIds((current) =>
+      current.includes(serviceId)
+        ? current.filter((id) => id !== serviceId)
+        : [...current, serviceId]
+    );
+    setErrorMessage("");
+  };
 
   const handleTimeSelect = (slot) => {
     if (!date || loading) return;
@@ -417,10 +501,13 @@ function BookingsContent() {
         <Navbar />
         <div className="flex min-h-screen flex-col pt-20">
           <main className="flex-1 px-5 py-8 md:px-8">
-            <div className="mx-auto mb-12 flex max-w-3xl justify-center px-1">
-              <BookingStep number={1} label="Date & Time" active={step === 1} complete={step > 1} />
-              <BookingStep number={2} label="Location" active={step === 2} complete={step > 2} />
-              <BookingStep number={3} label="Confirm" active={step === 3} complete={false} />
+            <div className="mx-auto mb-12 flex max-w-4xl justify-center px-1">
+              {bookingType === "custom" && (
+                <BookingStep number={1} label="Services" active={step === 1} complete={step > 1} />
+              )}
+              <BookingStep number={dateTimeStep} label="Date & Time" active={step === dateTimeStep} complete={step > dateTimeStep} />
+              <BookingStep number={locationStep} label="Location" active={step === locationStep} complete={step > locationStep} />
+              <BookingStep number={confirmStep} label="Confirm" active={step === confirmStep} complete={false} isLast />
             </div>
 
             <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[1fr_420px]">
@@ -431,7 +518,130 @@ function BookingsContent() {
                   </div>
                 )}
 
-                {step === 1 && (
+                {bookingType === "custom" && step === serviceStep && (
+                  <div>
+                    <div className="mb-8 flex items-center gap-3">
+                      <CalendarDays className="h-7 w-7 text-pink-600" />
+                      <h1 className="text-2xl font-bold text-gray-950">Customize Services</h1>
+                    </div>
+
+                    <div className="mb-8">
+                        <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                          <div>
+                            <label className="block text-lg font-bold text-gray-950">Choose Services</label>
+                            <p className="mt-1 text-sm text-gray-500">
+                              Pick one or more treatments. Your total price and duration update automatically.
+                            </p>
+                          </div>
+                          <span className="text-sm font-semibold text-pink-600">
+                            {selectedCustomServiceIds.length} selected
+                          </span>
+                        </div>
+                        <div className="grid gap-5 xl:grid-cols-2">
+                          {visibleCustomServices.map((service) => {
+                            const serviceId = Number(service.id);
+                            const isSelected = selectedCustomServiceIds.includes(serviceId);
+                            return (
+                              <button
+                                key={service.id}
+                                type="button"
+                                onClick={() => toggleCustomService(serviceId)}
+                                className={`grid min-h-44 grid-cols-[96px_1fr] gap-4 rounded-lg border p-4 text-left transition ${
+                                  isSelected
+                                    ? "border-pink-500 bg-pink-50 shadow-sm"
+                                    : "border-rose-100 bg-white hover:border-pink-300 hover:shadow-sm"
+                                }`}
+                              >
+                                <span className="relative h-24 w-24 overflow-hidden rounded-lg bg-rose-50">
+                                  <Image
+                                    src={getServiceImage(service)} 
+                                    fill
+                                    sizes="96px"
+                                    alt=""
+                                    className="object-cover"
+                                  />
+                                </span>
+
+                                <span className="min-w-0">
+                                  <span className="flex items-start justify-between gap-3">
+                                    <span className="min-w-0">
+                                      <span className="block text-base font-bold text-gray-950">{service.name}</span>
+                                      <span className="mt-2 flex flex-wrap gap-2">
+                                        {service.category && (
+                                          <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold capitalize text-rose-700 ring-1 ring-rose-100">
+                                            {service.category}
+                                          </span>
+                                        )}
+                                        {service.gender && (
+                                          <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold capitalize text-gray-700">
+                                            {service.gender}
+                                          </span>
+                                        )}
+                                      </span>
+                                    </span>
+                                    <span
+                                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+                                        isSelected ? "bg-pink-600 text-white" : "bg-rose-50 text-pink-600"
+                                      }`}
+                                    >
+                                      {isSelected ? <X size={16} /> : <PlusCircle size={18} />}
+                                    </span>
+                                  </span>
+
+                                  {service.description && (
+                                    <span className="mt-3 line-clamp-2 block text-sm leading-5 text-gray-600">
+                                      {service.description}
+                                    </span>
+                                  )}
+
+                                  <span className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-rose-100 pt-3">
+                                    <span className="font-bold text-gray-950">
+                                      Rs. {Number(service.price || 0).toFixed(2)}
+                                    </span>
+                                    {service.duration && (
+                                      <span className="inline-flex items-center gap-1 text-sm font-semibold text-gray-500">
+                                        <Clock3 size={15} />
+                                        {service.duration}
+                                      </span>
+                                    )}
+                                  </span>
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {totalCustomServicePages > 1 && (
+                          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-center">
+                            <button
+                              type="button"
+                              disabled={!hasPreviousCustomServicePage}
+                              onClick={() => setCustomServicePage((page) => Math.max(page - 1, 0))}
+                              className="rounded-lg border border-rose-200 bg-white px-5 py-3 text-sm font-bold text-rose-700 transition hover:border-rose-300 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              Previous Services
+                            </button>
+                            <span className="text-center text-sm font-semibold text-gray-500">
+                              Page {customServicePage + 1} of {totalCustomServicePages}
+                            </span>
+                            <button
+                              type="button"
+                              disabled={!hasNextCustomServicePage}
+                              onClick={() =>
+                                setCustomServicePage((page) =>
+                                  Math.min(page + 1, totalCustomServicePages - 1)
+                                )
+                              }
+                              className="rounded-lg border border-rose-200 bg-white px-5 py-3 text-sm font-bold text-rose-700 transition hover:border-rose-300 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              Show More Services
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                  </div>
+                )}
+
+                {step === dateTimeStep && (
                   <div>
                     <div className="mb-8 flex items-center gap-3">
                       <CalendarDays className="h-7 w-7 text-pink-600" />
@@ -448,7 +658,7 @@ function BookingsContent() {
                         setDate(event.target.value);
                         setTime("");
                       }}
-                      className="mb-8 w-full rounded-lg border border-rose-100 bg-white px-4 py-4 text-lg text-gray-900 outline-none focus:border-pink-500 focus:ring-4 focus:ring-pink-100"
+                      className="mb-8 w-full rounded-lg border border-rose-100 bg-white px-4 py-4 text-lg text-gray-900"
                     />
 
                     <label className="mb-4 block text-lg font-bold text-gray-950">Choose a Time Slot</label>
@@ -477,7 +687,7 @@ function BookingsContent() {
                   </div>
                 )}
 
-                {step === 2 && (
+                {step === locationStep && (
                   <div>
                     <div className="mb-8 flex items-center gap-3">
                       <MapPin className="h-7 w-7 text-pink-600" />
@@ -519,7 +729,7 @@ function BookingsContent() {
                           value={address}
                           onChange={(event) => setAddress(event.target.value)}
                           placeholder="Enter your full home address"
-                          className="w-full rounded-lg border border-rose-100 bg-white px-4 py-4 text-gray-900 outline-none focus:border-pink-500 focus:ring-4 focus:ring-pink-100"
+                          className="w-full rounded-lg border border-rose-100 bg-white px-4 py-4 text-gray-900"
                         />
                       </div>
                     )}
@@ -531,13 +741,13 @@ function BookingsContent() {
                         onChange={(event) => setNotes(event.target.value)}
                         placeholder="Any special requests or preferences..."
                         rows={4}
-                        className="w-full resize-none rounded-lg border border-rose-100 bg-[#fffaf7] px-4 py-4 text-gray-900 outline-none focus:border-pink-500 focus:ring-4 focus:ring-pink-100"
+                        className="w-full resize-none rounded-lg border border-rose-100 bg-[#fffaf7] px-4 py-4 text-gray-900"
                       />
                     </div>
                   </div>
                 )}
 
-                {step === 3 && (
+                {step === confirmStep && (
                   <div>
                     <div className="mb-8 flex items-center gap-3">
                       <CheckCircle2 className="h-7 w-7 text-pink-600" />
@@ -546,8 +756,15 @@ function BookingsContent() {
 
                     <div className="grid gap-8 border-b border-rose-100 pb-8 md:grid-cols-2">
                       <div>
-                        <p className="mb-2 text-gray-500">{bookingType === "package" ? "Package" : "Service"}</p>
+                        <p className="mb-2 text-gray-500">
+                          {bookingType === "package" ? "Package" : bookingType === "custom" ? "Custom Services" : "Service"}
+                        </p>
                         <p className="text-xl font-bold text-gray-950">{selectedItem?.name || "-"}</p>
+                        {bookingType === "custom" && selectedItem?.services?.length > 0 && (
+                          <p className="mt-2 text-sm text-gray-500">
+                            {selectedItem.services.map((service) => service.name).join(", ")}
+                          </p>
+                        )}
                       </div>
                       <div>
                         <p className="mb-2 text-gray-500">Time</p>
@@ -625,11 +842,11 @@ function BookingsContent() {
               >
                 Previous
               </button>
-              {step < 3 ? (
+              {step < confirmStep ? (
                 <button
                   type="button"
-                  onClick={() => setStep((current) => Math.min(3, current + 1))}
-                  disabled={(step === 1 && !canGoNextFromStepOne) || (step === 2 && !canGoNextFromStepTwo)}
+                  onClick={() => setStep((current) => Math.min(confirmStep, current + 1))}
+                  disabled={!canGoNext}
                   className="h-14 rounded-lg bg-gradient-to-r from-pink-500 to-purple-500 text-lg font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Next
