@@ -29,6 +29,13 @@ router.post("/save-transaction", async (req, res) => {
       ],
       (err, result) => {
         if (err) {
+          if (err.code === "ER_DUP_ENTRY") {
+            return res.json({
+              success: true,
+              duplicate: true,
+              message: "Transaction already saved",
+            });
+          }
           console.error(err);
           return res.status(500).json({ error: "Database error" });
         }
