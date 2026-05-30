@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Logo from "@/components/Logo";
 import TextInput from "@/components/TextInput";
@@ -12,8 +12,7 @@ import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 export default function LoginPage() {
-  const router = useRouter();
-
+  const router = useRouter(); 
   const emailRef = useRef(null);
   const passwordRef = useRef(null);
 
@@ -21,8 +20,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
-
-
+ 
   const validateEmail = () => {
   const trimmed = email.trim();
 
@@ -82,8 +80,7 @@ const regex = new RegExp(
   e.preventDefault();
 
   if (!validateEmail()) return;   
-  if (!validatePassword()) return; 
-
+  if (!validatePassword()) return;  
 
   setLoading(true);
 
@@ -102,8 +99,7 @@ const regex = new RegExp(
     if (!res.ok) {
 
   toast.error(data.message || "Login failed", {
-    position: "top-center",
-    autoClose: 5000,
+    position: "top-center", 
   });
 
   if (data.message === "User not found") {
@@ -122,8 +118,7 @@ const regex = new RegExp(
   localStorage.setItem("role", data.user.role);
 
   toast.success(`Welcome, ${data.user.fullName}`, {
-    position: "top-center",
-    autoClose: 2000,
+    position: "top-center", 
   });
 
   setTimeout(() => {
@@ -132,50 +127,40 @@ const regex = new RegExp(
     } else {
       router.replace("/dashboard");
     }
-  }, 2000);
+  },1000);
 }
 
   } catch (err) {
     toast.error("Server error. Please try again.", {
-      position: "top-center",
-      autoClose: 5000,
+      position: "top-center", 
     });
   } finally {
     setLoading(false);
   }
 };
-
-
+ 
   return (
     <div className="min-h-screen flex bg-white">
-      <ToastContainer />
-
-
+      <ToastContainer /> 
       <div className="hidden md:block w-1/2">
         <img
           src="/login.png"
           alt="side"
           className="w-full h-full object-cover brightness-90"
         />
-      </div>
-
-
+      </div> 
       <div className="w-full md:w-1/2 flex items-center justify-center bg-pink-50 px-8 py-12">
-        <div className="w-full max-w-md">
-          
+        <div className="w-full max-w-md"> 
           <Logo />
 
           <h2 className="text-3xl font-bold text-center text-gray-900 mb-2">
             Welcome Back
-          </h2>
-          
+          </h2> 
           <p className="text-center text-gray-400 mb-8">
             Login to continue your beauty journey
           </p>
-
-
-          <form className="space-y-6" onSubmit={handleLogin}>
-         
+ 
+          <form className="space-y-6" onSubmit={handleLogin}> 
             <TextInput
               ref={emailRef}
               label="Email Address"
@@ -191,9 +176,7 @@ const regex = new RegExp(
                 }
               }}
               error={errors.email}
-              disabled={loading}
-            />
-
+              disabled={loading}/> 
 
             <PasswordInput
               ref={passwordRef}
@@ -203,8 +186,7 @@ const regex = new RegExp(
               onChange={(e) => setPassword(e.target.value)}
               onBlur={validatePassword}
               error={errors.password}
-              disabled={loading}
-            />
+              disabled={loading}/>
 
             <p className="text-right text-sm text-pink-500 hover:underline">
               <a href="/forgot-password">Forgot Password?</a>
@@ -213,24 +195,19 @@ const regex = new RegExp(
             <Button
               type="submit"
               fullWidth
-              disabled={loading}
-            >
+              disabled={loading}>
               {loading ? "Logging in..." : "Login"}
             </Button>
           </form>
-
-
+ 
           <div className="flex items-center my-6">
             <hr className="flex-grow border-gray-300" />
             <span className="mx-3 text-gray-500 text-sm">
               Or continue with
             </span>
             <hr className="flex-grow border-gray-300" />
-          
-          </div>
-          
-          <GoogleButton />
-
+          </div> 
+          <GoogleButton /> 
 
           <p className="text-center text-sm mt-6 text-gray-500">
             Don’t have an account?
@@ -238,10 +215,8 @@ const regex = new RegExp(
               Sign Up
             </a>
           </p>
-        
-        </div>
+        </div> 
       </div>
-    
-    </div>
+    </div> 
   );
 }

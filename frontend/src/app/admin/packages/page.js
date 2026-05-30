@@ -1,10 +1,12 @@
 "use client";
 
+import { apiUrl } from "@/lib/apiConfig";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import AdminSidebar from "@/components/AdminSidebar";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { getToken } from "@/lib/authStorage";
 
 export default function AdminPackagesPage() {
   const router = useRouter();
@@ -13,12 +15,11 @@ export default function AdminPackagesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const packagesPerPage = 10;
 
-  const token =
-    typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  const token = getToken();
 
   const fetchPackages = async () => {
     try {
-      const res = await fetch("http://localhost:5001/admin/packages", {
+      const res = await fetch(apiUrl("/admin/packages"), {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -34,11 +35,13 @@ export default function AdminPackagesPage() {
   useEffect(() => {
     fetchPackages();
   }, []);
-
+ 
   const indexOfLastPackage = currentPage * packagesPerPage;
   const indexOfFirstPackage = indexOfLastPackage - packagesPerPage;
   const currentPackages = packages.slice(indexOfFirstPackage, indexOfLastPackage);
-  const totalPages = Math.ceil(packages.length / packagesPerPage);
+  const totalPages = Math.max(1, Math.ceil(packages.length / packagesPerPage));
+  const showingStart = packages.length === 0 ? 0 : indexOfFirstPackage + 1;
+  const showingEnd = Math.min(indexOfLastPackage, packages.length);
 
   const handleNextPage = () => {
     if (currentPage < totalPages) setCurrentPage(currentPage + 1);
@@ -47,7 +50,7 @@ export default function AdminPackagesPage() {
   const handlePrevPage = () => {
     if (currentPage > 1) setCurrentPage(currentPage - 1);
   };
-
+ 
   const confirmWithToast = (message, onConfirm) => {
     toast.info(
       ({ closeToast }) => (
@@ -84,7 +87,7 @@ export default function AdminPackagesPage() {
       async () => {
         try {
           const res = await fetch(
-            `http://localhost:5001/packages/${pkg.id}/${action}`,
+            apiUrl(`/packages/${pkg.id}/${action}`),
             {
               method: "PUT",
               headers: { Authorization: `Bearer ${token}` },
@@ -112,24 +115,25 @@ export default function AdminPackagesPage() {
     return <div className="p-10 text-center text-gray-500">Loading packages...</div>;
 
   return (
-    <div className="min-h-screen bg-[#fff7fa] flex">
-      <AdminSidebar />
-
-      <main className="flex-1 p-8">
+    <AdminSidebar>
+      <div>
         <ToastContainer position="top-center" />
 
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <button
-            onClick={() => router.back()}
-            className="px-4 py-2 rounded bg-gray-200 text-gray-700 hover:bg-gray-300"
-          >
-            ← Back
-          </button>
+        <div className="mb-6 flex items-center justify-between gap-4">
+          <div className="flex-1 text-center mb-6">
+            <h1 className="text-3xl font-bold">
+              <span className="bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">
+                Package Management
+              </span>
+            </h1>
 
-          <h1 className="text-2xl font-bold text-pink-500 text-center flex-1">
-            Packages
-          </h1>
+            <p className="text-gray-500 mt-2">
+              Manage all available packages in one place
+            </p>
+            <p className="text-gray-500 text-md mt-1">
+              Add new packages, update details, control pricing, duration, and linked services efficiently
+            </p>
+          </div>
 
           <button
             onClick={() => router.push("/admin/packages/add")}
@@ -138,9 +142,9 @@ export default function AdminPackagesPage() {
             + Add Package
           </button>
         </div>
-
-        {/* Table */}
-        <div className="bg-white shadow-sm rounded-xl overflow-x-auto border">
+        </div>
+ 
+        <div className="bg-white shadow-[0_4px_6px_-1px_rgba(236,72,153,0.4),0_2px_4px_-1px_rgba(236,72,153,0.06)] rounded-xl overflow-x-auto border">
           <table className="w-full text-sm">
             <thead className="bg-pink-50 text-gray-700">
               <tr>
@@ -204,12 +208,16 @@ export default function AdminPackagesPage() {
             </tbody>
           </table>
         </div>
-
-        <div className="mt-4 flex justify-center gap-4">
+ 
+        <div className="mt-4 flex flex-col items-center justify-between gap-4 text-sm text-gray-600 md:flex-row">
+          <div>
+            Showing {showingStart}-{showingEnd} of {packages.length} packages
+          </div>
+          <div className="flex items-center gap-3">
           <button
             onClick={handlePrevPage}
             disabled={currentPage === 1}
-            className="px-4 py-2 rounded bg-gray-200 text-gray-700 disabled:opacity-50"
+            className="rounded-md border border-gray-200 bg-white px-4 py-2 font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Previous
           </button>
@@ -219,12 +227,13 @@ export default function AdminPackagesPage() {
           <button
             onClick={handleNextPage}
             disabled={currentPage === totalPages}
-            className="px-4 py-2 rounded bg-gray-200 text-gray-700 disabled:opacity-50"
+            className="rounded-md border border-gray-200 bg-white px-4 py-2 font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Next
           </button>
+          </div>
         </div>
-      </main>
-    </div>
+    
+    </AdminSidebar>
   );
 }

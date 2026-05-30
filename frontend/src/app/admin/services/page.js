@@ -1,10 +1,12 @@
 "use client";
 
+import { apiUrl } from "@/lib/apiConfig";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ToastContainer, toast } from "react-toastify";
 import AdminSidebar from "@/components/AdminSidebar";
 import "react-toastify/dist/ReactToastify.css";
+import { getToken } from "@/lib/authStorage";
 
 export default function AdminServicesPage() {
   const [services, setServices] = useState([]);
@@ -15,8 +17,8 @@ export default function AdminServicesPage() {
  
   const fetchServices = async () => {
     try {
-      const token = localStorage.getItem("token"); 
-      const res = await fetch("http://localhost:5001/admin/services", {
+      const token = getToken();
+      const res = await fetch(apiUrl("/admin/services"), {
         headers: { Authorization: `Bearer ${token}` },
       }); 
       const data = await res.json();
@@ -36,7 +38,9 @@ export default function AdminServicesPage() {
   const indexOfLastService = currentPage * servicesPerPage;
   const indexOfFirstService = indexOfLastService - servicesPerPage;
   const currentServices = services.slice(indexOfFirstService, indexOfLastService);
-  const totalPages = Math.ceil(services.length / servicesPerPage);
+  const totalPages = Math.max(1, Math.ceil(services.length / servicesPerPage));
+  const showingStart = services.length === 0 ? 0 : indexOfFirstService + 1;
+  const showingEnd = Math.min(indexOfLastService, services.length);
 
   const handleNextPage = () => {
     if (currentPage < totalPages) setCurrentPage(currentPage + 1);
@@ -81,10 +85,10 @@ export default function AdminServicesPage() {
       async () => {
         try {
           const res = await fetch(
-            `http://localhost:5001/admin/services/${service.id}/${action}`,
+            apiUrl(`/admin/services/${service.id}/${action}`),
             {
               method: "PUT",
-              headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+              headers: { Authorization: `Bearer ${getToken()}` },
             }
           );
 
@@ -109,31 +113,35 @@ export default function AdminServicesPage() {
     return <div className="p-10 text-center text-gray-500">Loading services...</div>;
  
   return (
-    <div className="min-h-screen bg-[#fff7fa] flex">
-      <AdminSidebar /> 
+    <AdminSidebar>
+      <ToastContainer position="top-center" />
 
-      <main className="flex-1 p-8"> 
-        <ToastContainer position="top-center" />
-        <div className="flex items-center justify-between mb-6">
-          <button
-            onClick={() => router.back()}
-            className="px-4 py-2 rounded bg-gray-200 text-gray-700 hover:bg-gray-300"
-          >
-            ← Back
-          </button>
-
-          <h1 className="text-2xl font-bold text-pink-500 text-center flex-1">
-            Admin – Services
+      {/* Header */}
+      <div className="mb-6 flex items-center justify-between gap-4">
+        <div className="flex-1 text-center mb-6">
+          <h1 className="text-3xl font-bold">
+            <span className="bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">
+              Service Management
+            </span>
           </h1>
 
-          <button
-            onClick={() => router.push("/admin/services/add")}
-            className="text-white px-5 py-2 rounded-full bg-gradient-to-r from-pink-500 to-purple-500"
-          >
-            + Add Service
-          </button>
+          <p className="text-gray-500 mt-2">
+            Manage all services efficiently from one place
+          </p>
+          <p className="text-gray-500 text-md mt-1">
+            Easily add new services, update details, control status, and ensure everything runs smoothly
+          </p>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border overflow-x-auto">
+
+        <button
+          onClick={() => router.push("/admin/services/add")}
+          className="text-white px-5 py-2 rounded-full bg-gradient-to-r from-pink-500 to-purple-500"
+        >
+          + Add Service
+        </button>
+      </div>
+ 
+        <div className="bg-white rounded-xl shadow-[0_4px_6px_-1px_rgba(236,72,153,0.4),0_2px_4px_-1px_rgba(236,72,153,0.06)] border overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-pink-50 text-gray-700">
               <tr>
@@ -196,12 +204,16 @@ export default function AdminServicesPage() {
             </tbody>
           </table>
         </div>
-
-        <div className="mt-4 flex justify-center gap-4">
+ 
+        <div className="mt-4 flex flex-col items-center justify-between gap-4 text-sm text-gray-600 md:flex-row">
+          <div>
+            Showing {showingStart}-{showingEnd} of {services.length} services
+          </div>
+          <div className="flex items-center gap-3">
           <button
             onClick={handlePrevPage}
             disabled={currentPage === 1}
-            className="px-4 py-2 rounded bg-gray-200 text-gray-700 disabled:opacity-50"
+            className="rounded-md border border-gray-200 bg-white px-4 py-2 font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Previous
           </button>
@@ -211,12 +223,12 @@ export default function AdminServicesPage() {
           <button
             onClick={handleNextPage}
             disabled={currentPage === totalPages}
-            className="px-4 py-2 rounded bg-gray-200 text-gray-700 disabled:opacity-50"
+            className="rounded-md border border-gray-200 bg-white px-4 py-2 font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Next
           </button>
+          </div>
         </div>
-      </main>
-    </div>
+    </AdminSidebar>
   );
 } 
