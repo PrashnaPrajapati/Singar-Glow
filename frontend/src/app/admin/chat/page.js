@@ -1,8 +1,11 @@
-"use client"; // Add this to mark the component as a Client Component
+"use client"; 
 
 import { useState, useEffect } from "react";
 import { jwtDecode } from "jwt-decode";
 import Chat from "@/components/Chat";
+import AdminSidebar from "@/components/AdminSidebar";
+import Link from "next/link";
+import { getToken } from "@/lib/authStorage";
 
 export default function AdminChatPage() {
   const [adminId, setAdminId] = useState(null);
@@ -11,7 +14,7 @@ export default function AdminChatPage() {
   useEffect(() => {
     console.log("🔐 Admin chat page useEffect running...");
      
-    const token = localStorage.getItem("token");
+    const token = getToken();
     
     console.log("📦 Token from localStorage:", token ? "✅ Found" : "❌ Not found");
     console.log("🔍 All localStorage keys:", Object.keys(localStorage));
@@ -47,14 +50,16 @@ export default function AdminChatPage() {
     return (
       <div className="text-center mt-8">
         <p className="text-lg">Admin access required.</p>
-        <p className="text-sm text-gray-500 mt-2"><a href="/login" className="text-blue-500 hover:underline">Go to login</a></p>
+        <p className="text-sm text-gray-500 mt-2"><Link href="/login" className="text-blue-500 hover:underline">Go to login</Link></p>
       </div>
     );
   }
 
   return (
-    <div>
-      <Chat userId={adminId} isAdmin={true} />
-    </div>
+    <AdminSidebar>
+      <div className="pl-16">
+        <Chat userId={adminId} isAdmin={true} />
+      </div>
+    </AdminSidebar>
   );
 }

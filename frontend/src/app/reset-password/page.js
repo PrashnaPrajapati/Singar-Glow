@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { apiUrl } from "@/lib/apiConfig";
+import { Suspense, useState, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import Button from "@/components/Button";
-
-export default function ResetPasswordPage() {
+ 
+function ResetPasswordContent() { 
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [message, setMessage] = useState(null);
@@ -24,7 +25,8 @@ export default function ResetPasswordPage() {
 
   if (!token)
     return <p className="text-center mt-20 text-red-600">Invalid password reset link.</p>;
-    const validatePassword = () => {
+ 
+  const validatePassword = () => {
     const regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/;
 
     if (!newPassword) {
@@ -40,27 +42,7 @@ export default function ResetPasswordPage() {
     }
 
     return true;
-  };
-
-  const validateConfirmPassword = () => {
-    if (!confirmPassword) {
-      setError("Please confirm your new password.");
-      return false;
-    }
-    if (confirmPassword !== newPassword) {
-      setError("Passwords do not match.");
-      return false;
-    }
-
-    if (!regex.test(newPassword)) {
-      setError(
-        "Password must be 8+ characters and include uppercase, lowercase, number, and special character."
-      );
-      return false;
-    }
-
-    return true;
-  };
+  }; 
 
   const validateConfirmPassword = () => {
     if (!confirmPassword) {
@@ -86,25 +68,11 @@ export default function ResetPasswordPage() {
       confirmPasswordRef.current?.focus();
       return;
     }
-    return true;
-  };
 
-  const handleReset = async (e) => {
-    e.preventDefault();
-    setError(null);
-    setMessage(null);
-    if (!validatePassword()) {
-      newPasswordRef.current?.focus();
-      return;
-    }
-    if (!validateConfirmPassword()) {
-      confirmPasswordRef.current?.focus();
-      return;
-    } 
     setLoading(true);
 
-    try {
-      const res = await fetch("http://localhost:5001/reset-password", {
+    try { 
+      const res = await fetch(apiUrl("/reset-password"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, newPassword }),
@@ -112,7 +80,7 @@ export default function ResetPasswordPage() {
 
       const data = await res.json();
 
-      if (res.ok) {
+      if (res.ok) { 
         setMessage(data.message || "Password reset successfully!");
         setTimeout(() => router.push("/login"), 3000);
       } else {
@@ -122,12 +90,8 @@ export default function ResetPasswordPage() {
       setError("Server error. Please try again later.");
     } finally {
       setLoading(false);
-    }
-  }; 
-
-
+    } 
   };
-
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-pink-50 px-8 py-12">
@@ -135,8 +99,10 @@ export default function ResetPasswordPage() {
         <h2 className="text-3xl font-bold text-center text-gray-900 mb-2">Set New Password</h2>
 
         <form onSubmit={handleReset} className="space-y-4">
+          {/* New Password */}
           <div className="relative">
             <input
+              id="new-password"
               ref={newPasswordRef}
               type={showPassword ? "text" : "password"}
               placeholder="New Password"
@@ -145,50 +111,57 @@ export default function ResetPasswordPage() {
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
-                  if (validatePassword()) {
+                  if (validatePassword()) { 
                     confirmPasswordRef.current?.focus();
                   }
                 }
               }}
-              className="w-full p-3 border border-gray-300 rounded focus:outline-pink-500 text-gray-900 placeholder-gray-400"/>
-            <span
-              className="absolute right-3 top-3 cursor-pointer"
-              onClick={() => setShowPassword(!showPassword)}>
-              className="w-full p-3 border border-gray-300 rounded focus:outline-pink-500 text-gray-900 placeholder-gray-400"
+              className="w-full p-3 border border-gray-300 rounded text-gray-900 placeholder-gray-400"
             />
-            <span
-              className="absolute right-3 top-3 cursor-pointer"
+            <button
+              type="button"
+              className="absolute right-3 top-3 rounded text-gray-600"
               onClick={() => setShowPassword(!showPassword)}
-            >
+            > 
               {showPassword ? <EyeOff /> : <Eye />}
-            </span>
+            </button>
           </div>
-
+ 
           <div className="relative">
             <input
+              id="confirm-new-password"
               ref={confirmPasswordRef}
               type={showConfirm ? "text" : "password"}
               placeholder="Confirm New Password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded focus:outline-pink-500 text-gray-900 placeholder-gray-400"
+              className="w-full p-3 border border-gray-300 rounded text-gray-900 placeholder-gray-400"
             />
-            <span
-              className="absolute right-3 top-3 cursor-pointer"
+            <button
+              type="button"
+              className="absolute right-3 top-3 rounded text-gray-600"
               onClick={() => setShowConfirm(!showConfirm)}
-            >
+            > 
               {showConfirm ? <EyeOff /> : <Eye />}
-            </span>
+            </button>
           </div>
 
           {error && <p className="text-red-600 text-sm">{error}</p>}
           {message && <p className="text-green-600 text-sm">{message}</p>}
-
+  
           <Button type="submit" fullWidth disabled={loading}>
             {loading ? "Resetting..." : "Reset Password"}
           </Button>
         </form>
       </div>
     </div>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-pink-50" />}>
+      <ResetPasswordContent />
+    </Suspense>
   );
 }

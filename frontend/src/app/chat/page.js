@@ -5,6 +5,8 @@ import { jwtDecode } from "jwt-decode";
 import Chat from "@/components/Chat";
 import Sidebar from "@/components/Sidebar";
 import Navbar from "@/components/Navbar";
+import Link from "next/link";
+import { getToken } from "@/lib/authStorage";
 
 export default function UserChatPage() {
   const [isOpen, setIsOpen] = useState(false);
@@ -14,7 +16,7 @@ export default function UserChatPage() {
   useEffect(() => {
     console.log("🔐 Chat page useEffect running...");
     
-    const token = localStorage.getItem("token"); 
+    const token = getToken();
     
     console.log("📦 Token from localStorage:", token ? "✅ Found" : "❌ Not found");
     console.log("🔍 All localStorage keys:", Object.keys(localStorage));
@@ -50,21 +52,21 @@ export default function UserChatPage() {
     return (
       <div className="text-center mt-8">
         <p className="text-lg">Please log in to access chat.</p>
-        <p className="text-sm text-gray-500 mt-2"><a href="/login" className="text-blue-500 hover:underline">Go to login</a></p>
+        <p className="text-sm text-gray-500 mt-2"><Link href="/login" className="text-blue-500 hover:underline">Go to login</Link></p>
       </div>
     );
   }
 
   return (
-    <div className="flex w-full min-h-screen bg-white">
+    <div className="flex h-screen w-full overflow-hidden bg-white">
       <Sidebar isOpen={isOpen} setIsOpen={setIsOpen} />
-      <div className={`flex-1 flex flex-col min-h-screen ${isOpen ? "md:ml-70" : "pl-4 md:pl-8"}`}>
-      <Navbar />
+      <div className="flex min-h-0 flex-1 flex-col">
+        <Navbar />
 
-    <div className="flex-1 flex flex-col min-h-screen pt-20">
-      <Chat userId={userId} isAdmin={false} />
-    </div>
-    </div>
+        <div className="flex min-h-0 flex-1 flex-col pt-20">
+          <Chat userId={userId} isAdmin={false} />
+        </div>
+      </div>
     </div>
   
   );
