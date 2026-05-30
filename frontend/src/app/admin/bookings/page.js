@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import AdminSidebar from "../../../components/AdminSidebar";
+import AdminDashboardUI from "../../../components/AdminSidebar";
 
 export default function AdminBookingsPage() {
   const [bookings, setBookings] = useState([]);
@@ -9,9 +9,8 @@ export default function AdminBookingsPage() {
   const [token, setToken] = useState(null);
   const [mounted, setMounted] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const bookingsPerPage = 10;
 
+  // Fetch bookings initially and check for token
   useEffect(() => {
     setMounted(true);
     const t = localStorage.getItem("token");
@@ -25,24 +24,6 @@ export default function AdminBookingsPage() {
     fetchBookings(t);
   }, []);
 
-  const indexOfLastBooking = currentPage * bookingsPerPage;
-const indexOfFirstBooking = indexOfLastBooking - bookingsPerPage;
-
-const currentBookings = bookings.slice(
-  indexOfFirstBooking,
-  indexOfLastBooking
-);
-
-const totalPages = Math.ceil(bookings.length / bookingsPerPage);
-
-const handleNextPage = () => {
-  if (currentPage < totalPages) setCurrentPage(currentPage + 1);
-};
-
-const handlePrevPage = () => {
-  if (currentPage > 1) setCurrentPage(currentPage - 1);
-};
-
   // Function to fetch all bookings
   const fetchBookings = (authToken) => {
     fetch("http://localhost:5001/admin/bookings", {
@@ -52,9 +33,10 @@ const handlePrevPage = () => {
     })
       .then((res) => {
         if (res.status === 401) {
+          // Unauthorized, clear token and redirect to login
           alert("Session expired. Please log in again.");
-          localStorage.removeItem("token");
-          window.location.href = "/login"; 
+          localStorage.removeItem("token"); // Remove invalid token
+          window.location.href = "/login"; // Redirect to login page
           return;
         }
 
@@ -74,12 +56,15 @@ const handlePrevPage = () => {
       });
   };
 
+  // Handle status change and update both frontend and backend
   const handleStatusChange = (id, newStatus) => {
+    // Optimistically update the local state
     const updatedBookings = bookings.map((b) =>
       b.id === id ? { ...b, status: newStatus } : b
     );
     setBookings(updatedBookings);
 
+    // Update the status in the backend
     fetch(`http://localhost:5001/admin/bookings/${id}/status`, {
       method: "PUT",
       headers: {
@@ -90,23 +75,29 @@ const handlePrevPage = () => {
     })
       .then((res) => {
         if (!res.ok) {
+          // If response is not OK, check if it's HTML (error page)
           return res.text().then((text) => {
             try {
+              // Try to parse it as JSON
               const errorData = JSON.parse(text);
               throw new Error(
                 `Failed to update booking status: ${errorData.message || "Unknown error"}`
               );
             } catch (err) {
+              // If parsing fails, assume it's an HTML error page
               throw new Error(`Server error: ${text}`);
             }
           });
         }
 
+        // Refetch bookings after a successful update to sync with the server
         fetchBookings(token);
       })
       .catch((err) => {
         console.error("Error updating status:", err);
+        // Optionally provide more detailed feedback to the user
         alert(`Failed to update status: ${err.message}`);
+        // Revert to the previous state if there's an error
         setBookings(bookings);
       });
   };
@@ -125,27 +116,15 @@ const handlePrevPage = () => {
   }
 
   return (
-    <AdminSidebar>
-      <div className="p-8 min-h-screen bg-gray-50">
-        <div className="text-center mb-6">
-  <h1 className="text-3xl font-bold">
-    <span className="bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">
-      Bookings Management
-    </span>
-  </h1>
+    <AdminDashboardUI>
+      <div className="p-8 min-h-screen bg-[#fff7fa]">
+        <h1 className="text-3xl font-bold text-center mb-8 bg-clip-text text-transparent bg-gradient-to-r from-pink-500 to-purple-500">
+          Manage Bookings
+        </h1>
 
-  <p className="text-gray-500 mt-2">
-    Track and manage all customer bookings efficiently
-  </p>
-  <p className="text-gray-500 text-md mt-1">
-    View details, update statuses, and keep your schedule organized
-  </p>
-  
-</div>
-
-        <div className="overflow-x-auto shadow-[0_4px_6px_-1px_rgba(236,72,153,0.4),0_2px_4px_-1px_rgba(236,72,153,0.06)]">
-          <table className="min-w-full bg-white rounded-lg text-gray-800">
-            <thead className="bg-pink-50 text-gray-700">
+        <div className="overflow-x-auto shadow-md rounded-lg border border-pink-200">
+          <table className="min-w-full bg-white rounded-lg border border-pink-200 text-gray-800">
+            <thead className="bg-gradient-to-r from-pink-500 to-purple-500 text-white">
               <tr>
                 <th className="py-3 px-5 text-left">ID</th>
                 <th className="py-3 px-5 text-left">Customer</th>
@@ -158,51 +137,47 @@ const handlePrevPage = () => {
             </thead>
 
             <tbody>
-              {currentBookings.map((b) => (
+              {bookings.map((b) => (
                 <tr
                   key={b.id}
-                  className="border-b border-gray-200 hover:bg-pink-50"
+                  className="border-b border-pink-200 hover:bg-pink-50"
                 >
                   <td className="py-3 px-5">{b.id}</td>
                   <td className="py-3 px-5 font-medium text-gray-900">
                     {b.user}
                   </td>
-                  <td className="py-3 px-5">
-  {b.package ? b.package : b.service}
-</td>
+                  <td className="py-3 px-5">{b.service}</td>
                   <td className="py-3 px-5">
                     {formatDate(b.booking_date)}, {formatTime(b.booking_time)}
                   </td>
 
                   <td className="py-3 px-5">
-  <select
-    value={b.status}
-    onChange={(e) => {
-      if (b.status !== 'cancelled' || e.target.value !== 'cancelled') {
-        handleStatusChange(b.id, e.target.value);
-      }
-    }}
-    className={`border rounded px-2 py-1 bg-white focus:outline-none focus:ring-2 ${
-      b.status === "upcoming"
-        ? "text-blue-600 border-blue-200 focus:ring-blue-300"
-        : b.status === "completed"
-        ? "text-green-600 border-green-200 focus:ring-green-300"
-        : "text-red-600 border-red-200 focus:ring-red-300"
-    }`}
-  >
-    <option value="upcoming">Upcoming</option>
-    <option value="completed">Completed</option> 
-  </select>
-</td>
+                    <select
+                      value={b.status}
+                      onChange={(e) =>
+                        handleStatusChange(b.id, e.target.value)
+                      }
+                      className={`border rounded px-2 py-1 bg-white focus:outline-none focus:ring-2 ${
+                        b.status === "upcoming"
+                          ? "text-blue-600 border-blue-200 focus:ring-blue-300"
+                          : b.status === "completed"
+                          ? "text-green-600 border-green-200 focus:ring-green-300"
+                          : "text-red-600 border-red-200 focus:ring-red-300"
+                      }`}
+                    >
+                      <option value="upcoming">Upcoming</option>
+                      <option value="completed">Completed</option> 
+                    </select>
+                  </td>
 
                   <td className="py-3 px-5 font-semibold text-green-600">
-  {b.package_price || b.service_price || "0"}
-</td>
+                    {b.price || "0"}
+                  </td>
 
                   <td className="py-3 px-5">
                     <button
                       onClick={() => setSelectedBooking(b)}
-                      className="px-4 py-1 rounded text-white bg-gray-400 hover:bg-gray-500"
+                      className="px-4 py-1 rounded text-white bg-gradient-to-r from-pink-500 to-purple-500 hover:opacity-90"
                     >
                       View Details
                     </button>
@@ -213,6 +188,7 @@ const handlePrevPage = () => {
           </table>
         </div>
 
+        {/* POPUP MODAL WITH BACKDROP BLUR */}
         {selectedBooking && (
           <div className="fixed inset-0 flex items-center justify-center backdrop-blur-sm">
             <div className="bg-white p-8 rounded-lg shadow-xl w-[420px] text-gray-800 border border-pink-200">
@@ -232,7 +208,7 @@ const handlePrevPage = () => {
                 <span>{selectedBooking.user}</span>
 
                 <span className="font-semibold">Service:</span>
-                <span>{selectedBooking.service || selectedBooking.package}</span>
+                <span>{selectedBooking.service}</span>
 
                 <span className="font-semibold">Date:</span>
                 <span>{formatDate(selectedBooking.booking_date)}</span>
@@ -245,7 +221,7 @@ const handlePrevPage = () => {
 
                 <span className="font-semibold">Amount:</span>
                 <span className="text-green-600 font-semibold">
-                  {selectedBooking.service_price || selectedBooking.package_price || "0"}
+                  {selectedBooking.price || "0"}
                 </span>
               </div>
 
@@ -257,31 +233,8 @@ const handlePrevPage = () => {
               </button>
             </div>
           </div>
-          
         )}
-        <div className="mt-6 flex justify-center gap-4">
-  <button
-    onClick={handlePrevPage}
-    disabled={currentPage === 1}
-    className="px-4 py-2 rounded bg-gray-200 text-gray-700 disabled:opacity-50"
-  >
-    Previous
-  </button>
-
-  <span className="px-4 py-2 text-gray-700">
-    Page {currentPage} of {totalPages}
-  </span>
-
-  <button
-    onClick={handleNextPage}
-    disabled={currentPage === totalPages}
-    className="px-4 py-2 rounded bg-gray-200 text-gray-700 disabled:opacity-50"
-  >
-    Next
-  </button>
-</div>
       </div>
-      
-    </AdminSidebar>
+    </AdminDashboardUI>
   );
 } 
