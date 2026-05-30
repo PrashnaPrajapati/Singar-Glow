@@ -1,5 +1,6 @@
 "use client";
 
+import { apiUrl } from "@/lib/apiConfig";
 import Link from "next/link";
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
@@ -7,13 +8,14 @@ import Logo from "@/components/Logo";
 import TextInput from "@/components/TextInput";
 import PasswordInput from "@/components/PasswordInput";
 import Button from "@/components/Button";
+import GoogleButton from "@/components/GoogleButton"; 
 import { User, Phone, Mail } from "lucide-react";
-import { ToastContainer, toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
-
+import { toast } from "react-toastify";
+import { notify } from "@/lib/notify";
+ 
 export default function SignupPage() {
   const router = useRouter();
-
+ 
   const fullNameRef = useRef(null);
   const phoneRef = useRef(null);
   const emailRef = useRef(null);
@@ -30,6 +32,28 @@ export default function SignupPage() {
   const [otherGender, setOtherGender] = useState("");
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+
+  const showSignupError = (message) => {
+    const normalizedMessage = message || "Signup failed";
+
+    notify.error(normalizedMessage);
+
+    if (/email/i.test(normalizedMessage)) {
+      setErrors((prev) => ({ ...prev, email: normalizedMessage }));
+      emailRef.current?.focus();
+    } else if (/phone/i.test(normalizedMessage)) {
+      setErrors((prev) => ({ ...prev, phone: normalizedMessage }));
+      phoneRef.current?.focus();
+    } else if (/name/i.test(normalizedMessage)) {
+      setErrors((prev) => ({ ...prev, fullName: normalizedMessage }));
+      fullNameRef.current?.focus();
+    } else if (/password/i.test(normalizedMessage)) {
+      setErrors((prev) => ({ ...prev, password: normalizedMessage }));
+      passwordRef.current?.focus();
+    } else if (/gender/i.test(normalizedMessage)) {
+      setErrors((prev) => ({ ...prev, gender: normalizedMessage }));
+    }
+  };
 
   const validateFullName = () => {
     const trimmed = fullName.trim();
@@ -62,29 +86,30 @@ export default function SignupPage() {
     return true;
   };
 
-  const validateEmail = () => {
-  const trimmed = email.trim(); 
+  const validateEmail = () => { 
+  const trimmed = email.trim();
+ 
   const allowedProviders = [
     "gmail", "yahoo", "hotmail", "outlook", "icloud",
     "aol", "protonmail", "zoho", "gmx", "mail"
   ];
-
+ 
   const allowedTLDs = [
     "com", "edu", "io", "org", "net", "co", "gov",
     "in", "ai", "app", "dev"
   ];
-
+ 
   const regex = new RegExp(
     `^[a-zA-Z0-9._%+-]+@(${allowedProviders.join("|")})\\.(${allowedTLDs.join("|")})$`,
-    "i" 
+    "i"  
   );
-
+ 
   if (!trimmed) {
     setErrors(prev => ({ ...prev, email: "Email is required." }));
     emailRef.current?.focus();
     return false;
   }
-
+ 
   if (!regex.test(trimmed)) {
     setErrors(prev => ({
       ...prev,
@@ -93,10 +118,10 @@ export default function SignupPage() {
     emailRef.current?.focus();
     return false;
   }
-
+ 
   setErrors(prev => ({ ...prev, email: "" }));
   return true;
-};
+}; 
 
   const validatePassword = () => {
     const trimmed = password.trim();
@@ -126,9 +151,7 @@ export default function SignupPage() {
 
   setErrors(prev => ({ ...prev, confirmPassword: "" }));
   return true;
-};
-
-
+}; 
   const validateGender = () => {
     if (!gender) {
       setErrors(prev => ({ ...prev, gender: "Please select a gender." }));
@@ -153,7 +176,7 @@ export default function SignupPage() {
 
     const creatingToastId = toast.info("Creating Account...", {
       position: "top-center",
-      autoClose: false,
+      autoClose: false, 
       hideProgressBar: false,
       closeOnClick: false,
       pauseOnHover: false,
@@ -165,7 +188,7 @@ export default function SignupPage() {
     const finalGender = gender === "other" ? otherGender.trim() : gender;
 
     try {
-      const res = await fetch("http://localhost:5001/signup", {
+      const res = await fetch(apiUrl("/signup"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -173,7 +196,7 @@ export default function SignupPage() {
           phone: phone.trim(),
           email: email.trim(),
           password: password.trim(), 
-          gender: finalGender,
+          gender: finalGender, 
         }),
       });
 
@@ -181,33 +204,26 @@ export default function SignupPage() {
 
       if (!res.ok) {
         toast.dismiss(creatingToastId);
-        toast.error(data.message || "Signup failed", {
-          position: "top-center", 
-        });
+        showSignupError(data.message);
         setLoading(false);
         return;
       } 
      
       toast.update(creatingToastId, {
-        render: "Account Created Successfully!",
-        type: "success", 
+        render: data.message || "Account created. Please verify your email before logging in.",
+        type: "success",  
         hideProgressBar: false,
         closeOnClick: true,
         pauseOnHover: true,
         draggable: true,
       });
 
-      
-      setTimeout(() => {
-        router.push("/login");
-      }, 2000);
+      router.push("/login");
 
     } catch (err) {
       console.error(err);
       toast.dismiss(creatingToastId);
-      toast.error("Something went wrong. Please try again.", {
-        position: "top-center", 
-      });
+      notify.error("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -215,29 +231,19 @@ export default function SignupPage() {
 
   return (
     <div className="min-h-screen flex bg-white">
-      <ToastContainer 
-      position ="top-center" 
-      hideProgressBar={false}
-      newestOnTop={false} 
-      closeOnClick
-      rtl={false}
-      pauseOnFocusLoss
-      draggable
-      pauseOnHover
-      /> 
-      <div className="hidden md:block w-1/2">
+      <div className="hidden md:block w-1/2"> 
         <img
           src="/signup.png"
-          
+          alt="" 
           className="w-full h-full object-cover brightness-90"
         />
       </div> 
       <div className="w-full md:w-1/2 flex items-center justify-center bg-pink-50 px-8 py-12">
-        <div className="w-full max-w-md"> 
-          <Logo /> 
+        <div className="w-full max-w-md">
+          <Logo />
           <h2 className="text-2xl font-bold text-center text-gray-800 mb-2">
             Create Account
-          </h2> 
+          </h2>
           <p className="text-center text-gray-500 mt-1 mb-6">
             Join us and start your beauty journey
           </p>
@@ -301,7 +307,7 @@ export default function SignupPage() {
               error={errors.email}
               disabled={loading}
             />
-
+ 
             <PasswordInput
               ref={passwordRef}
               placeholder="Create a password"
@@ -320,7 +326,7 @@ export default function SignupPage() {
               error={errors.password}
               disabled={loading}
             />
-
+ 
             <PasswordInput
               ref={confirmPasswordRef}
               placeholder="Confirm your password"
@@ -339,22 +345,26 @@ export default function SignupPage() {
               error={errors.confirmPassword}
               disabled={loading}
             />
-
-            <div>
-              <label className="text-sm font-medium text-gray-700">Gender</label>
+ 
+            <fieldset>
+              <legend className="text-sm font-medium text-gray-700">Gender</legend>
               <div className="flex items-center gap-5 mt-2">
-                {["female", "male", "other"].map((g) => (
-                  <label key={g} className="flex items-center gap-2 text-gray-700">
+                {[
+                  { value: "female", label: "Female" },
+                  { value: "male", label: "Male" },
+                  { value: "other", label: "Other" },
+                ].map((g) => (
+                  <label key={g.value} className="flex items-center gap-2 text-gray-700">
                     <input
                       type="radio"
                       name="gender"
-                      value={g}
+                      value={g.value}
                       className="accent-pink-500"
-                      checked={gender === g}
+                      checked={gender === g.value}
                       onChange={(e) => setGender(e.target.value)}
                       disabled={loading}
                     />
-                    {g.charAt(0).toUpperCase() + g.slice(1)}
+                    {g.label}
                   </label>
                 ))}
               </div>
@@ -371,19 +381,28 @@ export default function SignupPage() {
                   disabled={loading}
                 />
               )}
-            </div>
+            </fieldset>
 
             <Button type="submit" fullWidth disabled={loading}>
               {loading ? "Creating Account..." : "Create Account"}
             </Button>
 
+            <div className="flex items-center my-2">
+              <hr className="flex-grow border-gray-300" />
+              <span className="mx-3 text-gray-500 text-sm">
+                Or continue with
+              </span>
+              <hr className="flex-grow border-gray-300" />
+            </div>
+
+            <GoogleButton />
+
             <div className="text-center text-sm mt-4 text-gray-500">
             Already have an account?{" "}
-            <Link href="/login" className="text-pink-500 font-medium">
+            <Link href="/login" className="text-pink-500 font-semibold ml-1">
               Login
             </Link>
-          </div>
-
+          </div> 
           </form>
         </div>
       </div>
