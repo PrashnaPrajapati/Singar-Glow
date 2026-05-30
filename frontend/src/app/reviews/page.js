@@ -15,7 +15,8 @@ function ReviewStars({ rating = 0 }) {
         <Star
           key={index}
           className={`h-4 w-4 ${index < value ? "fill-current" : ""}`}
-        /> 
+          aria-hidden="true"
+        />
       ))}
       <span className="ml-2 text-sm font-semibold text-gray-500">
         {value}/5

@@ -1,10 +1,11 @@
 "use client";
 
+import { apiUrl } from "@/lib/apiConfig";
 import { useState } from "react";
 import Button from "@/components/Button";
-
+ 
 export default function ForgotPasswordPage() {
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(""); 
   const [message, setMessage] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -22,18 +23,18 @@ export default function ForgotPasswordPage() {
 
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:5001/forgot-password", {
+      const res = await fetch(apiUrl("/forgot-password"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email: email.trim() }),
       });
 
+      const data = await res.json();
+
       if (res.ok) {
-        const data = await res.json();
-        setMessage("If the email is registered, you will receive reset instructions.");
+        setMessage(data.message || "Reset instructions sent. Please check your email.");
         setToken(data.token);
       } else {
-        const data = await res.json();
         setError(data.message || "Something went wrong.");
       }
     } catch (err) {
@@ -49,13 +50,14 @@ export default function ForgotPasswordPage() {
         <form onSubmit={handleReset} className="space-y-4">
           <label className="block text-gray-500 font-semibold">Email Address</label>
           <input
+            id="forgot-email"
             type="email"
             placeholder="Enter your email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full p-3 border border-gray-300 rounded focus:outline-pink-500 text-gray-900 placeholder-gray-400"
+            onChange={(e) => setEmail(e.target.value)} 
+            className="w-full p-3 border border-gray-300 rounded text-gray-900 placeholder-gray-400"
           />
-          {error && <p className="text-red-600 text-sm">{error}</p>}
+          {error && <p id="forgot-email-error" className="text-red-600 text-sm">{error}</p>}
           {message && <p className="text-green-600 text-sm">{message}</p>}
           {token && (
             <div className="bg-blue-50 border border-blue-200 rounded p-3 mt-4">

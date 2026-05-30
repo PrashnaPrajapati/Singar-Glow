@@ -3,7 +3,7 @@
 import { apiUrl } from "@/lib/apiConfig";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import AdminSidebar from "@/components/AdminSidebar"; 
+import AdminSidebar from "@/components/AdminSidebar";
 import { getRole, getToken } from "@/lib/authStorage";
 import { notify } from "@/lib/notify";
 import { createSafeFetch } from "@/lib/safeFetch";
@@ -79,7 +79,7 @@ function getTopPackagesByBookings(packages, bookings) {
       ),
     }))
     .sort(
-      (a, b) => 
+      (a, b) =>
         b.bookingCount - a.bookingCount || (b.rating || 0) - (a.rating || 0)
     )
     .slice(0, 5);
@@ -101,7 +101,7 @@ export default function AdminDashboard() {
   const [monthlyData, setMonthlyData] = useState([]);
   const [categoryData, setCategoryData] = useState([]);
   const [sentimentData, setSentimentData] = useState([]);
- 
+
   const [servicesList, setServicesList] = useState([]);
   const [packagesList, setPackagesList] = useState([]);
   const [bookingsList, setBookingsList] = useState([]);
@@ -400,7 +400,7 @@ function TabContent({ title, items, type }) {
                     <select
                       value={item.status}
                       onChange={(e) => {
-                        const newStatus = e.target.value; 
+                        const newStatus = e.target.value;
                         const updatedBookings = [...items];
                         updatedBookings[index] = {...item, status: newStatus};
                         items = updatedBookings; 

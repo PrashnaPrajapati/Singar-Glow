@@ -86,7 +86,7 @@ export default function SignupPage() {
     return true;
   };
 
-  const validateEmail = () => { 
+  const validateEmail = () => {
   const trimmed = email.trim();
  
   const allowedProviders = [
@@ -211,7 +211,7 @@ export default function SignupPage() {
      
       toast.update(creatingToastId, {
         render: data.message || "Account created. Please verify your email before logging in.",
-        type: "success",  
+        type: "success", 
         hideProgressBar: false,
         closeOnClick: true,
         pauseOnHover: true,
@@ -231,7 +231,7 @@ export default function SignupPage() {
 
   return (
     <div className="min-h-screen flex bg-white">
-      <div className="hidden md:block w-1/2"> 
+      <div className="hidden md:block w-1/2">
         <img
           src="/signup.png"
           alt="" 

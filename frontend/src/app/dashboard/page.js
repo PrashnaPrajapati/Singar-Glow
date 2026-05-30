@@ -576,7 +576,7 @@ export default function UserDashboard() {
     if (privateFeedbackText.trim() === "") {
       toast.error("Please write your feedback first.");
       return;
-    } 
+    }
 
     try {
       const res = await fetch(apiUrl(`/bookings/${currentBooking.id}/feedback`), {
@@ -1238,9 +1238,9 @@ export default function UserDashboard() {
               </div>
             </div>
           )}
-        </main> 
+        </main>
         <Footer />
-      </div>
+      </div> 
     </div>
     </div>
 

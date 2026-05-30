@@ -1,12 +1,11 @@
-import Link from "next/link";
+import Link from "next/link"; 
 import Logo from "@/components/Logo";
-
-export default function Footer() {
+ 
+export default function Footer() { 
   return (
-    <footer className="bg-[#fff7fa] py-10 text-sm text-gray-600">
+    <footer className="border-t border-rose-100 bg-white py-10 text-sm text-gray-600">
       <div className="max-w-8xl mx-auto px-6 grid md:grid-cols-5 gap-2">
-        
-        <div>
+        <div> 
           <div className="mb-2 scale-60 origin-left">
             <Logo />
           </div>
@@ -22,6 +21,11 @@ export default function Footer() {
               </Link>
             </li>
             <li>
+              <Link href="/packages" className="hover:text-pink-500">
+                Packages
+              </Link>
+            </li>
+            <li>
               <Link href="/login" className="hover:text-pink-500">
                 Login
               </Link>
@@ -30,12 +34,7 @@ export default function Footer() {
               <Link href="/signup" className="hover:text-pink-500">
                 Sign Up
               </Link>
-            </li>
-            <li>
-              <Link href="/bookings" className="hover:text-pink-500">
-                Bookings
-              </Link>
-            </li>
+            </li> 
           </ul>
         </div>
 
@@ -61,16 +60,32 @@ export default function Footer() {
         <div>
           <h4 className="font-semibold mb-4">Support</h4>
           <ul className="space-y-3">
-             <li className="hover:text-pink-500">📞 Help Center</li>
-            <li className="hover:text-pink-500">📄 Booking Policy</li>
-            <li className="hover:text-pink-500">⭐ Reviews</li>
-            <li className="hover:text-pink-500">❓ FAQs</li>
+            <li>
+              <Link href="/help-center" className="hover:text-pink-500">
+                Help Center
+              </Link>
+            </li>
+            <li>
+              <Link href="/booking-policy" className="hover:text-pink-500">
+                Booking Policy
+              </Link>
+            </li>
+            <li>
+              <Link href="/reviews" className="hover:text-pink-500">
+                Reviews
+              </Link>
+            </li>
+            <li>
+              <Link href="/faqs" className="hover:text-pink-500">
+                FAQs
+              </Link>
+            </li>
           </ul>
         </div>
       </div>
 
       <p className="text-center mt-8 text-xs text-gray-400">
-        © 2026 Singar Glow. All rights reserved.
+        &copy; 2026 Singar Glow. All rights reserved.
       </p>
     </footer>
   );
