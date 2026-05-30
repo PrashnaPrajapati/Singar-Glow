@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   Gift,
   PackageCheck,
+  Star,
 } from "lucide-react";
 
 const DEFAULT_PACKAGE_IMAGE = "/bridal.png";
@@ -31,6 +32,7 @@ export default function PackageDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  
 
   useEffect(() => {
     setIsLoggedIn(Boolean(getValidToken()));
@@ -67,7 +69,7 @@ export default function PackageDetailsPage() {
           ? bookingsData.find(
               (booking) =>
                 Number(booking.package_id) === Number(params.id) &&
-                !["cancelled", "pending"].includes(booking.status)
+                !["cancelled", "pending", "missed"].includes(booking.status)
             )
           : null;
         setExistingBooking(currentBooking || null);
@@ -113,8 +115,17 @@ export default function PackageDetailsPage() {
   };
 
   const packageImage = pkg.image
-    ? apiUrl(`/uploads/packages/${pkg.image}`)
+    ? apiUrl(pkg.image.startsWith("http") ? pkg.image : `/uploads/packages/${pkg.image}`)
     : DEFAULT_PACKAGE_IMAGE;
+  const reviewCount = reviews.length;
+  const averageRating = reviewCount
+    ? (
+        reviews.reduce((total, review) => total + (Number(review.rating) || 0), 0) /
+        reviewCount
+      )
+        .toFixed(1)
+        .replace(".0", "")
+    : 0;
 
   return (
     <div className={`min-h-screen bg-[#fffaf7] ${isLoggedIn ? "flex" : ""}`}>
@@ -158,9 +169,9 @@ export default function PackageDetailsPage() {
                   <div className="relative mb-6 aspect-[16/9] overflow-hidden rounded-lg border border-rose-100 bg-rose-50 shadow-sm">
                     <Image
                       src={packageImage}
-                      alt={pkg.name}
-                      fill
+                      fill 
                       priority
+                      alt=""
                       className="object-cover"
                     />
                     <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/65 to-transparent p-6 text-white">
@@ -175,15 +186,47 @@ export default function PackageDetailsPage() {
                   </div>
 
                   <section className="mb-6 rounded-lg border border-rose-100 bg-white p-6 shadow-sm">
-                    <p className="text-sm font-bold uppercase tracking-wider text-rose-600">
-                      Package Details
-                    </p>
-                    <h2 className="mt-2 text-2xl font-bold text-gray-950">
-                      Complete beauty care in one booking
-                    </h2>
-                    <p className="mt-4 leading-7 text-gray-600">
-                      {pkg.description || "No description available."}
-                    </p>
+                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <p className="text-sm font-bold uppercase tracking-wider text-rose-600">
+                          Package Details
+                        </p>
+                        <h2 className="mt-2 text-2xl font-bold text-gray-950">
+                          {pkg.name}
+                        </h2>
+                      </div>
+                      <div className="shrink-0 rounded-lg bg-[#fffaf7] px-5 py-4 md:text-right">
+                        <span className="text-2xl font-bold text-gray-900">
+                          Rs. {pkg.price}
+                        </span>
+                        <p className="text-sm text-gray-500">per package</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 flex flex-wrap gap-3 text-sm text-gray-600">
+                      {reviewCount > 0 && (
+                        <span className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-2">
+                          <Star size={15} className="fill-amber-400 text-amber-400" />
+                          <span className="font-semibold text-gray-800">{averageRating}</span>
+                          <span className="text-gray-400">
+                            ({reviewCount} {reviewCount === 1 ? "review" : "reviews"})
+                          </span>
+                        </span>
+                      )}
+                      <span className="inline-flex items-center gap-2 rounded-full bg-rose-50 px-3 py-2 font-semibold text-rose-700">
+                        <PackageCheck size={16} />
+                        {pkg.services?.length || 0} service{pkg.services?.length === 1 ? "" : "s"}
+                      </span>
+                    </div>
+
+                    <div className="mt-6 border-t border-rose-100 pt-6">
+                      <h2 className="mb-2 text-lg font-semibold text-gray-950">
+                        Description
+                      </h2>
+                      <p className="leading-7 text-gray-600">
+                        {pkg.description || "No description available."}
+                      </p>
+                    </div>
                   </section>
 
                   <section className="mb-6 rounded-lg border border-rose-100 bg-white p-6 shadow-sm">
@@ -216,8 +259,8 @@ export default function PackageDetailsPage() {
                             <div className="relative aspect-[4/3] bg-rose-50">
                               <Image
                                 src={serviceImage}
-                                alt={service.name}
-                                fill
+                                fill 
+                                alt=""
                                 className="object-cover transition duration-500 group-hover:scale-105"
                               />
                             </div>

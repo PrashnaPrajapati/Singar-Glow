@@ -61,7 +61,7 @@ export default function ServiceDetailsPage() {
           ? bookingsData.find(
               (booking) =>
                 Number(booking.service_id) === Number(params.id) &&
-                !["cancelled", "pending"].includes(booking.status)
+                !["cancelled", "pending", "missed"].includes(booking.status)
             )
           : null;
         setExistingBooking(currentBooking || null);
@@ -150,17 +150,15 @@ export default function ServiceDetailsPage() {
                 <div className="relative mb-6 aspect-[16/9] overflow-hidden rounded-lg border border-rose-100 bg-rose-50 shadow-sm">
                   <Image
                     src={serviceImage}
-                    alt={service.name}
-                    fill
+                    fill 
                     priority
+                    alt=""
                     className="object-cover"
                   />
                   <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-6 text-white">
-                    {service.category && (
-                      <span className="inline-flex rounded-full bg-white/15 px-3 py-1 text-xs font-semibold capitalize backdrop-blur">
-                        {service.category}
-                      </span>
-                    )}
+                    <span className="inline-flex rounded-full bg-white/15 px-3 py-1 text-xs font-semibold backdrop-blur">
+                      Service
+                    </span>
                     <h1 className="mt-3 text-3xl font-bold md:text-4xl">
                       {service.name}
                     </h1>

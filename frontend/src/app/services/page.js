@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Clock,
   Filter,
+  ListChecks,
   Search,
   Sparkles,
 } from "lucide-react";
@@ -160,6 +161,14 @@ useEffect(() => {
                   <p className="mt-4 text-sm leading-6 text-gray-600">
                     Showing {filteredServices.length} {filteredServices.length === 1 ? "service" : "services"}.
                   </p>
+                  <button
+                    type="button"
+                    onClick={() => router.push("/bookings?custom=1")}
+                    className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gray-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-rose-700"
+                  >
+                    <ListChecks size={17} />
+                    Customize Services
+                  </button>
                 </div>
               </div>
             </div>
@@ -180,14 +189,14 @@ useEffect(() => {
                       placeholder="Search services..."
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
-                      className="w-full rounded-lg border border-rose-200 bg-white py-3 pl-10 pr-3 text-gray-700 placeholder-gray-400 outline-none transition focus:border-rose-400 focus:ring-4 focus:ring-rose-100"
+                      className="w-full rounded-lg border border-rose-200 bg-white py-3 pl-10 pr-3 text-gray-700 placeholder-gray-400 transition"
                     />
                   </label>
 
                   <select
                     value={genderFilter}
                     onChange={(e) => setGenderFilter(e.target.value)}
-                    className="rounded-lg border border-rose-200 bg-white p-3 text-gray-700 outline-none transition focus:border-rose-400 focus:ring-4 focus:ring-rose-100"
+                    className="rounded-lg border border-rose-200 bg-white p-3 text-gray-700 transition"
                   >
                     <option value="all">All Genders</option>
                     <option value="male">Male</option>
@@ -197,7 +206,7 @@ useEffect(() => {
                   <select
                     value={categoryFilter}
                     onChange={(e) => setCategoryFilter(e.target.value)}
-                    className="rounded-lg border border-rose-200 bg-white p-3 text-gray-700 outline-none transition focus:border-rose-400 focus:ring-4 focus:ring-rose-100"
+                    className="rounded-lg border border-rose-200 bg-white p-3 text-gray-700 transition"
                   >
                     <option value="all">All Categories</option>
                     <option value="hair">Hair</option>
@@ -245,8 +254,8 @@ useEffect(() => {
                       <div className="relative aspect-[4/3] bg-rose-50">
                         <Image
                           src={getServiceImage(service)}
-                          alt={service.name}
-                          fill
+                          fill 
+                          alt=""
                           className="object-cover transition duration-500 group-hover:scale-105"
                         />
                       </div>
@@ -306,8 +315,7 @@ useEffect(() => {
                       onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
                       disabled={currentPage === 1}
                       className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                      aria-label="Previous services page"
-                    >
+                    > 
                       <ChevronLeft size={18} />
                     </button>
 
@@ -321,8 +329,7 @@ useEffect(() => {
                       }
                       disabled={currentPage === totalPages}
                       className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-gray-950 text-white shadow-sm hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                      aria-label="Next services page"
-                    >
+                    > 
                       <ChevronRight size={18} />
                     </button>
 

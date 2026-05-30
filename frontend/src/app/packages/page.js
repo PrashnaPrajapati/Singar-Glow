@@ -88,7 +88,9 @@ useEffect(() => {
   }, [currentPage, totalPages]);
 
   const getPackageImage = (pkg) =>
-    pkg.image ? apiUrl(`/uploads/packages/${pkg.image}`) : DEFAULT_PACKAGE_IMAGE;
+    pkg.image
+      ? apiUrl(pkg.image.startsWith("http") ? pkg.image : `/uploads/packages/${pkg.image}`)
+      : DEFAULT_PACKAGE_IMAGE;
 
   return (
     <div className={`min-h-screen bg-[#fffaf7] ${isLoggedIn ? "flex" : ""}`}>
@@ -173,7 +175,7 @@ useEffect(() => {
                       placeholder="Search packages..."
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
-                      className="w-full rounded-lg border border-rose-200 bg-white py-3 pl-10 pr-3 text-gray-700 placeholder-gray-400 outline-none transition focus:border-rose-400 focus:ring-4 focus:ring-rose-100"
+                      className="w-full rounded-lg border border-rose-200 bg-white py-3 pl-10 pr-3 text-gray-700 placeholder-gray-400 transition"
                     />
                   </label>
                 </div>
@@ -209,9 +211,9 @@ useEffect(() => {
                         >
                         <div className="relative aspect-[4/3] bg-rose-50">
                           <Image
-                            src={getPackageImage(pkg)}
-                            alt={pkg.name}
+                            src={getPackageImage(pkg)} 
                             fill
+                            alt=""
                             className="object-cover transition duration-500 group-hover:scale-105"
                           />
                         </div>
@@ -245,8 +247,7 @@ useEffect(() => {
                       }
                       disabled={currentPage === 1}
                       className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                      aria-label="Previous packages page"
-                    >
+                    > 
                       <ChevronLeft size={18} />
                     </button>
 
@@ -260,8 +261,7 @@ useEffect(() => {
                       }
                       disabled={currentPage === totalPages}
                       className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-gray-950 text-white shadow-sm hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                      aria-label="Next packages page"
-                    >
+                    > 
                       <ChevronRight size={18} />
                     </button>
                   </div>

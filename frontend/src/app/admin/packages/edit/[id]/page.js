@@ -1,10 +1,13 @@
 "use client";
 
+import { apiUrl } from "@/lib/apiConfig";
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import AdminSidebar from "@/components/AdminSidebar";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { getToken } from "@/lib/authStorage";
+import { ArrowLeft } from "lucide-react";
 
 export default function EditPackagePage() {
   const router = useRouter();
@@ -23,22 +26,21 @@ export default function EditPackagePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const token =
-    typeof window !== "undefined" ? localStorage.getItem("token") : null;
-
+  const token = getToken();
+ 
   useEffect(() => {
-    fetch("http://localhost:5001/services")
+    fetch(apiUrl("/services"))
       .then((res) => res.json())
       .then((data) => setServices(Array.isArray(data) ? data : []))
       .catch(() => setServices([]));
   }, []);
-
+ 
   useEffect(() => {
     if (!id) return;
 
     const fetchPackage = async () => {
       try {
-        const res = await fetch(`http://localhost:5001/admin/packages/${id}`, {
+        const res = await fetch(apiUrl(`/admin/packages/${id}`), {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -63,7 +65,7 @@ export default function EditPackagePage() {
 
         if (data.image) {
           setImage(data.image);
-          setPreview(`http://localhost:5001/uploads/${data.image}`);
+          setPreview(apiUrl(data.image.startsWith("http") ? data.image : `/uploads/packages/${data.image}`));
         }
 
         setLoading(false);
@@ -76,7 +78,7 @@ export default function EditPackagePage() {
 
     fetchPackage();
   }, [id]);
-
+ 
   const handleServiceToggle = (id) => {
     const numId = Number(id);
 
@@ -86,7 +88,7 @@ export default function EditPackagePage() {
         : [...prev, numId]
     );
   };
-
+ 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -96,7 +98,7 @@ export default function EditPackagePage() {
     const previewUrl = URL.createObjectURL(file);
     setPreview(previewUrl);
   };
-
+ 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -122,7 +124,7 @@ export default function EditPackagePage() {
         formData.append("image", image);
       }
 
-      const res = await fetch(`http://localhost:5001/admin/packages/${id}`, {
+      const res = await fetch(apiUrl(`/admin/packages/${id}`), {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -144,11 +146,11 @@ export default function EditPackagePage() {
         return;
       }
 
-      toast.success("Package updated successfully ✅");
+      toast.success("Package updated successfully");
 
       setTimeout(() => {
         router.push("/admin/packages");
-      }, 1000);
+      }, 1200);
     } catch (err) {
       console.error(err);
       setError("Something went wrong");
@@ -163,26 +165,38 @@ export default function EditPackagePage() {
     );
 
   return (
-    <div className="min-h-screen bg-[#fff7fa] flex">
-      <AdminSidebar />
-
-      <main className="flex-1 p-8">
-        <ToastContainer position="top-center" />
-
-        <h1 className="text-2xl font-bold text-pink-500 mb-6">
-          Edit Package
-        </h1>
-
-        {error && (
-          <div className="bg-red-100 text-red-600 p-3 rounded mb-4">
-            {error}
-          </div>
-        )}
-
-        <form
-          onSubmit={handleSubmit}
-          className="bg-white p-6 rounded-xl shadow-sm max-w-2xl"
+    <AdminSidebar>
+      <ToastContainer position="top-center" />
+      <div className="mx-auto mb-6 flex max-w-3xl justify-start">
+        <button
+          onClick={() => router.back()}
+          className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50"
         >
+          <ArrowLeft size={16} />
+          Back
+        </button>
+      </div>
+
+  <div className="mx-auto w-full max-w-3xl rounded-xl border border-rose-100 bg-white p-6 shadow-sm sm:p-8">
+    <h1 className="mb-2 text-center text-2xl font-bold text-pink-500">
+      <span className="bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">
+        Edit Package
+      </span>
+    </h1>
+    <p className="mb-6 text-center text-sm text-gray-500">
+      Update package details, linked services, pricing, duration, and image.
+    </p>
+
+    {error && (
+      <div className="bg-red-100 text-red-600 p-3 rounded mb-4">
+        {error}
+      </div>
+    )}
+
+         <form
+      onSubmit={handleSubmit}
+      className="space-y-4"
+    > 
           <div className="mb-4">
             <label className="block mb-1 font-medium text-black">
               Package Name *
@@ -191,9 +205,10 @@ export default function EditPackagePage() {
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full border p-2 rounded text-black"
+              className="w-full rounded-lg border border-gray-300 px-4 py-2 text-gray-900 outline-none transition focus:border-pink-400 focus:ring-2 focus:ring-pink-100"
             />
           </div>
+ 
           <div className="mb-4">
             <label className="block mb-1 font-medium text-black">
               Description
@@ -201,10 +216,11 @@ export default function EditPackagePage() {
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full border p-2 rounded text-black"
+              className="w-full rounded-lg border border-gray-300 px-4 py-2 text-gray-900 outline-none transition focus:border-pink-400 focus:ring-2 focus:ring-pink-100"
               rows={3}
             />
           </div>
+ 
           <div className="mb-4">
             <label className="block mb-1 font-medium text-black">
               Price (Rs.) *
@@ -213,9 +229,10 @@ export default function EditPackagePage() {
               type="number"
               value={price}
               onChange={(e) => setPrice(e.target.value)}
-              className="w-full border p-2 rounded text-black"
+              className="w-full rounded-lg border border-gray-300 px-4 py-2 text-gray-900 outline-none transition focus:border-pink-400 focus:ring-2 focus:ring-pink-100"
             />
           </div>
+ 
           <div className="mb-4">
             <label className="block mb-1 font-medium text-black">
               Duration (days) *
@@ -224,9 +241,10 @@ export default function EditPackagePage() {
               type="number"
               value={duration}
               onChange={(e) => setDuration(e.target.value)}
-              className="w-full border p-2 rounded text-black"
+              className="w-full rounded-lg border border-gray-300 px-4 py-2 text-gray-900 outline-none transition focus:border-pink-400 focus:ring-2 focus:ring-pink-100"
             />
           </div>
+ 
           <div className="mb-4">
             <label className="block mb-1 font-medium text-black">
               Package Image
@@ -243,7 +261,7 @@ export default function EditPackagePage() {
 
               <label
                 htmlFor="packageImage"
-                className="cursor-pointer px-4 py-2 bg-pink-400 text-white rounded hover:bg-pink-600"
+                className="cursor-pointer px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded hover:bg-pink-600"
               >
                 {image ? "Change Image" : "Choose Image"}
               </label>
@@ -258,12 +276,12 @@ export default function EditPackagePage() {
             {preview && (
               <img
                 src={preview}
-                alt="Preview"
+                alt=""
                 className="mt-3 w-32 h-32 object-cover rounded"
               />
             )}
           </div>
-
+ 
           <div className="mb-4">
             <label className="block mb-2 font-medium text-black">
               Select Services *
@@ -294,7 +312,7 @@ export default function EditPackagePage() {
             {saving ? "Updating..." : "Update Package"}
           </button>
         </form>
-      </main>
-    </div>
+        </div>
+    </AdminSidebar>
   );
 }
