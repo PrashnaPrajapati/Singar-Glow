@@ -176,7 +176,7 @@ export default function SignupPage() {
 
     const creatingToastId = toast.info("Creating Account...", {
       position: "top-center",
-      autoClose: false,
+      autoClose: false, 
       hideProgressBar: false,
       closeOnClick: false,
       pauseOnHover: false,
@@ -196,7 +196,7 @@ export default function SignupPage() {
           phone: phone.trim(),
           email: email.trim(),
           password: password.trim(), 
-          gender: finalGender,
+          gender: finalGender, 
         }),
       });
 

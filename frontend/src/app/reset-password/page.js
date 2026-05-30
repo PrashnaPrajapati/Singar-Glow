@@ -42,7 +42,7 @@ function ResetPasswordContent() {
     }
 
     return true;
-  };
+  }; 
 
   const validateConfirmPassword = () => {
     if (!confirmPassword) {
