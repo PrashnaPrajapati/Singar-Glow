@@ -1,12 +1,22 @@
+const path = require("path");
+const fs = require("fs");
 const mysql = require("mysql2");
 
-const db = mysql.createConnection({
-  host: "localhost",
-  user: "root",
-  password: "",
-  database: "singar-glow",
-});
+const envPath = [
+  path.resolve(__dirname, ".env"),
+  path.resolve(process.cwd(), ".env"),
+  path.resolve(process.cwd(), "../backend/.env"),
+].find((candidate) => fs.existsSync(candidate));
 
+require("dotenv").config({ path: envPath, quiet: true });
+ 
+const db = mysql.createConnection({
+  host: process.env.DB_HOST || "localhost",
+  user: process.env.DB_USER || "root",
+  password: process.env.DB_PASSWORD || "",
+  database: process.env.DB_NAME || "singarglow",
+});
+ 
 db.connect((err) => {
   if (err) {
     console.error("DB connection error:", err);

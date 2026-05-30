@@ -1,24 +1,29 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect, useMemo } from "react";
+import { getEsewaPaymentUrl, normalizeEsewaAmount } from "@/lib/esewa";
 import Sidebar from "@/components/Sidebar";
 import Footer from "@/components/Footer";
+import Navbar from "@/components/Navbar";
 
-export default function PaymentsPage() {
+function PaymentsContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-
+ 
   const bookingIdsParam = searchParams.get("bookingIds");
   const totalPrice = searchParams.get("totalPrice");
 
-  const bookingIds = bookingIdsParam
-    ? bookingIdsParam.split(",").map((id) => Number(id))
-    : [];
+  const bookingIds = useMemo(
+    () => (bookingIdsParam ? bookingIdsParam.split(",").map((id) => Number(id)) : []),
+    [bookingIdsParam]
+  );
 
   const [paymentStatus, setPaymentStatus] = useState(null);
   const [loading, setLoading] = useState(false);
+ 
   const [userEmail, setUserEmail] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
 
   const handleEsewaPayment = async () => {
     if (!userEmail) {
@@ -31,19 +36,29 @@ export default function PaymentsPage() {
       return;
     }
 
+    if (!process.env.NEXT_PUBLIC_ESEWA_MERCHANT_CODE) {
+      setPaymentStatus("❌ Payment configuration error");
+      return;
+    }
+
     setLoading(true);
     setPaymentStatus(null);
 
+    const paymentAmount = normalizeEsewaAmount(totalPrice);
     const transactionUuid = `TXN${Date.now()}`;
-    const successUrl = `${window.location.origin}/payments/esewa-callback?bookingIds=${bookingIds.join(",")}&txnId=${transactionUuid}`;
-    const failUrl = `${window.location.origin}/payments/payment-failed`;
-
+    const successUrl = `${window.location.origin}/payments/esewa-callback`;
+    const failUrl = `${window.location.origin}/payments/payment-failed?bookingIds=${bookingIds.join(",")}&totalPrice=${paymentAmount}`;
+ 
     try {
+      if (!paymentAmount) {
+        throw new Error("Invalid eSewa payment amount");
+      }
+
       const signatureResponse = await fetch("/api/payments/esewa-signature", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          amount: totalPrice,
+          amount: paymentAmount,
           transactionUUID: transactionUuid,
           productCode: process.env.NEXT_PUBLIC_ESEWA_MERCHANT_CODE || "EPAYTEST",
         }),
@@ -60,17 +75,17 @@ export default function PaymentsPage() {
         JSON.stringify({
           txnId: transactionUuid,
           bookingIds,
-          amount: totalPrice,
+          amount: paymentAmount,
           email: userEmail,
         })
       );
-
+ 
       const esewaData = {
-        amount: totalPrice,
+        amount: paymentAmount,
         tax_amount: 0,
         product_service_charge: 0,
         product_delivery_charge: 0,
-        total_amount: totalPrice,
+        total_amount: paymentAmount,
         transaction_uuid: transactionUuid,
         product_code: process.env.NEXT_PUBLIC_ESEWA_MERCHANT_CODE || "EPAYTEST",
         success_url: successUrl,
@@ -81,7 +96,7 @@ export default function PaymentsPage() {
 
       const form = document.createElement("form");
       form.method = "POST";
-      form.action = "https://rc-epay.esewa.com.np/api/epay/main/v2/form";
+      form.action = getEsewaPaymentUrl();
 
       Object.entries(esewaData).forEach(([name, value]) => {
         const input = document.createElement("input");
@@ -107,9 +122,11 @@ export default function PaymentsPage() {
   }, [bookingIds, totalPrice]);
 
   return (
-    <div className="min-h-screen bg-[#fff7fa]">
-      <Sidebar />
-      <div className="flex flex-col min-h-screen md:ml-64">
+    <div className="min-h-screen bg-gray-50">
+      <Sidebar isOpen={isOpen} setIsOpen={setIsOpen} />
+      <div className={`flex flex-col min-h-screen ${isOpen ? "md:ml-70" : "pl-16 md:pl-8"}`}>
+      <Navbar />
+      <div className="flex flex-col min-h-screen pt-20">
         <main className="flex-1 p-8">
           <h1 className="text-3xl font-bold text-center mb-10 bg-clip-text text-transparent bg-gradient-to-r from-pink-500 to-purple-500">
             Payment with eSewa
@@ -122,7 +139,7 @@ export default function PaymentsPage() {
             <p className="text-lg font-semibold mb-4">
               Total Price: Rs. {totalPrice}
             </p>
-
+ 
             <input
               type="email"
               placeholder="Enter your email"
@@ -130,7 +147,7 @@ export default function PaymentsPage() {
               onChange={(e) => setUserEmail(e.target.value)}
               className="w-full p-2 border mb-3 rounded"
             />
-
+ 
             <button
               onClick={handleEsewaPayment}
               disabled={loading}
@@ -138,7 +155,7 @@ export default function PaymentsPage() {
             >
               {loading ? "Processing..." : "Pay with eSewa"}
             </button>
-
+ 
             {paymentStatus && (
               <div className="mt-4 text-center text-sm font-medium text-gray-700">
                 {paymentStatus}
@@ -153,5 +170,14 @@ export default function PaymentsPage() {
         <Footer />
       </div>
     </div>
+    </div>
+  );
+}
+
+export default function PaymentsPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-50" />}>
+      <PaymentsContent />
+    </Suspense>
   );
 }
