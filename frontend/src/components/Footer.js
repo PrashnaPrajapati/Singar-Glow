@@ -1,9 +1,9 @@
-import Link from "next/link";
+import Link from "next/link"; 
 import Logo from "@/components/Logo";
-
-export default function Footer() {
+ 
+export default function Footer() { 
   return (
-    <footer className="bg-[#fff7fa] py-10 text-sm text-gray-600">
+    <footer className="border-t border-rose-100 bg-white py-10 text-sm text-gray-600">
       <div className="max-w-8xl mx-auto px-6 grid md:grid-cols-5 gap-2">
         <div> 
           <div className="mb-2 scale-60 origin-left">

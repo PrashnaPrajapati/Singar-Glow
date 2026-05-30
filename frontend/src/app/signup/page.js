@@ -12,10 +12,10 @@ import GoogleButton from "@/components/GoogleButton";
 import { User, Phone, Mail } from "lucide-react";
 import { toast } from "react-toastify";
 import { notify } from "@/lib/notify";
-
+ 
 export default function SignupPage() {
   const router = useRouter();
-
+ 
   const fullNameRef = useRef(null);
   const phoneRef = useRef(null);
   const emailRef = useRef(null);
@@ -32,6 +32,28 @@ export default function SignupPage() {
   const [otherGender, setOtherGender] = useState("");
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+
+  const showSignupError = (message) => {
+    const normalizedMessage = message || "Signup failed";
+
+    notify.error(normalizedMessage);
+
+    if (/email/i.test(normalizedMessage)) {
+      setErrors((prev) => ({ ...prev, email: normalizedMessage }));
+      emailRef.current?.focus();
+    } else if (/phone/i.test(normalizedMessage)) {
+      setErrors((prev) => ({ ...prev, phone: normalizedMessage }));
+      phoneRef.current?.focus();
+    } else if (/name/i.test(normalizedMessage)) {
+      setErrors((prev) => ({ ...prev, fullName: normalizedMessage }));
+      fullNameRef.current?.focus();
+    } else if (/password/i.test(normalizedMessage)) {
+      setErrors((prev) => ({ ...prev, password: normalizedMessage }));
+      passwordRef.current?.focus();
+    } else if (/gender/i.test(normalizedMessage)) {
+      setErrors((prev) => ({ ...prev, gender: normalizedMessage }));
+    }
+  };
 
   const validateFullName = () => {
     const trimmed = fullName.trim();
@@ -182,7 +204,7 @@ export default function SignupPage() {
 
       if (!res.ok) {
         toast.dismiss(creatingToastId);
-        notify.error(data.message || "Signup failed");
+        showSignupError(data.message);
         setLoading(false);
         return;
       } 
@@ -209,10 +231,10 @@ export default function SignupPage() {
 
   return (
     <div className="min-h-screen flex bg-white">
-      <div className="hidden md:block w-1/2"> 
+      <div className="hidden md:block w-1/2">
         <img
           src="/signup.png"
-          
+          alt="" 
           className="w-full h-full object-cover brightness-90"
         />
       </div> 
@@ -324,21 +346,25 @@ export default function SignupPage() {
               disabled={loading}
             />
  
-            <div>
-              <label className="text-sm font-medium text-gray-700">Gender</label>
+            <fieldset>
+              <legend className="text-sm font-medium text-gray-700">Gender</legend>
               <div className="flex items-center gap-5 mt-2">
-                {["female", "male", "other"].map((g) => (
-                  <label key={g} className="flex items-center gap-2 text-gray-700">
+                {[
+                  { value: "female", label: "Female" },
+                  { value: "male", label: "Male" },
+                  { value: "other", label: "Other" },
+                ].map((g) => (
+                  <label key={g.value} className="flex items-center gap-2 text-gray-700">
                     <input
                       type="radio"
                       name="gender"
-                      value={g}
+                      value={g.value}
                       className="accent-pink-500"
-                      checked={gender === g}
+                      checked={gender === g.value}
                       onChange={(e) => setGender(e.target.value)}
                       disabled={loading}
                     />
-                    {g.charAt(0).toUpperCase() + g.slice(1)}
+                    {g.label}
                   </label>
                 ))}
               </div>
@@ -355,7 +381,7 @@ export default function SignupPage() {
                   disabled={loading}
                 />
               )}
-            </div>
+            </fieldset>
 
             <Button type="submit" fullWidth disabled={loading}>
               {loading ? "Creating Account..." : "Create Account"}

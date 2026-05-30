@@ -1,26 +1,35 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { apiUrl } from "@/lib/apiConfig";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { toast, ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import { toast } from "react-toastify";
 import { jwtDecode } from "jwt-decode";
 import NotificationSystem from "./NotificationSystem";
-
-export default function Navbar({ onMenuClick }) {
+import { clearAuthSession, getToken } from "@/lib/authStorage";
+import { MessageCircle, Sparkles } from "lucide-react";
+ 
+export default function Navbar() {
   const router = useRouter();
 
   const [user, setUser] = useState(null);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [userId, setUserId] = useState(null);
   const [userRole, setUserRole] = useState(null);
+  const [chatUnreadCount, setChatUnreadCount] = useState(0);
+  const profileMenuId = "user-profile-menu";
+  const profileMenuRef = useRef(null);
+ 
+  const resetProfile = useCallback(() => {
+    setUser(null);
+    setUserId(null);
+    setUserRole(null);
+  }, []);
 
-  const fetchProfile = () => {
-    const token = localStorage.getItem("token");
+  const fetchProfile = useCallback(async () => {
+    const token = getToken();
     if (!token) {
-      setUser(null);
-      setUserId(null);
-      setUserRole(null);
+      resetProfile();
       return;
     }
  
@@ -30,30 +39,44 @@ export default function Navbar({ onMenuClick }) {
       setUserRole(decoded.role);
     } catch (error) {
       console.error("Error decoding token:", error);
-      setUserId(null);
-      setUserRole(null);
+      clearAuthSession();
+      resetProfile();
+      router.push("/login");
+      return;
     }
 
-    fetch("http://localhost:5001/profile", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.photoUrl && !data.photoUrl.startsWith("http")) {
-          data.photoUrl = `http://localhost:5001${data.photoUrl}`;
-        }
-        setUser(data);
-      })
-      .catch(() => {
-        setUser(null);
-        setUserId(null);
-        setUserRole(null);
+    try {
+      const res = await fetch(apiUrl("/profile"), {
+        headers: { Authorization: `Bearer ${token}` },
       });
-  };
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          clearAuthSession();
+          resetProfile();
+          router.push("/login");
+        }
+        throw new Error(data?.message || "Profile request failed");
+      }
+
+      setUser({
+        ...data,
+        photoUrl:
+          data?.photoUrl && !data.photoUrl.startsWith("http")
+            ? apiUrl(`${data.photoUrl}`)
+            : data?.photoUrl,
+      });
+    } catch (error) {
+      console.error("Error fetching profile:", error);
+      resetProfile();
+    }
+  }, [resetProfile, router]);
 
   useEffect(() => {
     fetchProfile();
-  }, []);
+  }, [fetchProfile]);
 
   useEffect(() => {
     const handleProfileUpdate = () => fetchProfile();
@@ -61,7 +84,60 @@ export default function Navbar({ onMenuClick }) {
 
     return () =>
       window.removeEventListener("profileUpdated", handleProfileUpdate);
-  }, []);
+  }, [fetchProfile]);
+
+  useEffect(() => {
+    if (!showProfileMenu) return;
+
+    const handleOutsideClick = (event) => {
+      if (!profileMenuRef.current?.contains(event.target)) {
+        setShowProfileMenu(false);
+      }
+    };
+
+    const handleEscape = (event) => {
+      if (event.key === "Escape") {
+        setShowProfileMenu(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [showProfileMenu]);
+
+  useEffect(() => {
+    if (!userId || userRole !== "users") return;
+
+    const fetchUserChatUnread = async () => {
+      try {
+        const token = getToken();
+        const res = await fetch(apiUrl("/messages/unread-count"), {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!res.ok) return;
+
+        const data = await res.json();
+        setChatUnreadCount(Number(data.unreadCount || 0));
+      } catch (error) {
+        console.error("Error fetching user chat unread count:", error);
+      }
+    };
+
+    fetchUserChatUnread();
+    window.addEventListener("focus", fetchUserChatUnread);
+    const intervalId = setInterval(fetchUserChatUnread, 15000);
+
+    return () => {
+      window.removeEventListener("focus", fetchUserChatUnread);
+      clearInterval(intervalId);
+    };
+  }, [userId, userRole]);
 
   const handleLogout = () => {
     setShowProfileMenu(false);
@@ -73,7 +149,7 @@ export default function Navbar({ onMenuClick }) {
           <div className="flex gap-2">
             <button
               onClick={() => {
-                localStorage.removeItem("token");
+                clearAuthSession();
                 router.push("/login");
                 closeToast();
               }}
@@ -100,38 +176,47 @@ export default function Navbar({ onMenuClick }) {
 
   return (
     <>
-    <div className="fixed top-0 left-0 right-0 flex justify-between items-center bg-gray-100 px-6 py-4 shadow-md border-b h-20 z-50">
+    <header className="fixed top-0 left-0 right-0 flex justify-between items-center bg-gray-100 px-6 py-4 shadow-md border-b h-20 z-50">
  
-      <div className="flex items-center gap-4">
-        {/* LOGO */} 
-        <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">
-          ✦ Singar Glow
+      <div className="flex items-center gap-4"> 
+        <h1 className="flex items-center gap-2 text-2xl md:text-3xl font-bold bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">
+          <Sparkles size={24} className="text-pink-500" />
+          <span>Singar Glow</span>
         </h1>
       </div>
  
       <div className="flex items-center gap-6">
  
-        <NotificationSystem userId={userId} userRole={userRole} /> 
+        <NotificationSystem userId={userId} userRole={userRole} />
         <button
           onClick={() => router.push("/chat")}
-          className="text-2xl"
-        >
-          💬
+          aria-label="Open chat"
+          className="relative p-2 text-gray-700 hover:bg-gray-100 rounded-full"
+        > 
+          <MessageCircle size={24} />
+          {chatUnreadCount > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 flex h-6 min-w-6 items-center justify-center rounded-full bg-red-500 px-1 text-xs font-bold leading-none text-white ring-2 ring-white">
+              {chatUnreadCount > 99 ? "99+" : chatUnreadCount}
+            </span>
+          )}
         </button>
  
-        <div className="relative">
+        <div ref={profileMenuRef} className="relative">
           <button
+            type="button"
+            aria-expanded={showProfileMenu}
+            aria-controls={profileMenuId}
+            aria-label="Open profile menu"
             onClick={() => {
               setShowProfileMenu(!showProfileMenu);
-              setShowNotifications(false);
-            }}
-            className="flex items-center gap-2"
-          >
+            }} 
+            className="flex items-center gap-2 rounded"
+          > 
             <img
               src={user?.photoUrl || "/default-avatar.png"}
+              alt={user?.fullName || "User profile"}
               className="w-9 h-9 rounded-full border"
-              alt="profile"
-            />
+            /> 
 
             <span className="hidden md:block font-medium text-gray-700">
               {user?.fullName || "User"}
@@ -139,7 +224,7 @@ export default function Navbar({ onMenuClick }) {
           </button>
 
           {showProfileMenu && (
-            <div className="absolute right-0 mt-3 w-44 bg-white border rounded-xl shadow-lg z-50">
+            <div id={profileMenuId} className="absolute right-0 mt-3 w-44 bg-white border rounded-xl shadow-lg z-50">
 
               <button
                 onClick={() => {
@@ -147,14 +232,14 @@ export default function Navbar({ onMenuClick }) {
                   setShowProfileMenu(false);
                 }}
                 className="w-full text-left px-4 py-2 hover:bg-gray-200 text-gray-700"
-              >
+              > 
                 View Profile
               </button>
 
               <button
                 onClick={handleLogout}
                 className="w-full text-left px-4 py-2 hover:bg-gray-200 text-red-500"
-              >
+              > 
                 Logout
               </button>
 
@@ -163,8 +248,7 @@ export default function Navbar({ onMenuClick }) {
         </div>
 
       </div>
-    </div>
-    <ToastContainer />
+    </header>
     </>
   );
 }

@@ -17,17 +17,17 @@ import {
 } from "@/lib/authStorage";
 import { Mail } from "lucide-react";
 import { notify } from "@/lib/notify";
-
+ 
 export default function LoginPage() {
   const router = useRouter();
-
+ 
   const emailRef = useRef(null);
   const passwordRef = useRef(null);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
-  const [errors, setErrors] = useState({}); 
+  const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -39,147 +39,149 @@ export default function LoginPage() {
       setRememberMe(true);
     }
   }, []);
- 
+
   const validateEmail = () => {
-  const trimmed = email.trim();
+    const trimmed = email.trim();
 
-  const allowedProviders = [
-  "gmail","yahoo","hotmail","outlook","icloud",
-  "aol","protonmail","zoho","gmx","mail"
-];
-const allowedTLDs = [
-  "com","edu","io","org","net","co","gov","in","ai","app","dev"
-];
+    const allowedProviders = [
+      "gmail",
+      "yahoo",
+      "hotmail",
+      "outlook",
+      "icloud",
+      "aol",
+      "protonmail",
+      "zoho",
+      "gmx",
+      "mail",
+    ];
+    const allowedTLDs = ["com", "edu", "io", "org", "net", "co", "gov", "in", "ai", "app", "dev"];
 
-const regex = new RegExp(
-  `^[a-zA-Z0-9._%+-]+@(${allowedProviders.join("|")})\\.(${allowedTLDs.join("|")})$`,
-  "i"
-);
-  if (!trimmed) {
-    setErrors((prev) => ({ ...prev, email: "Email is required." }));
-    emailRef.current?.focus();
-    return false;
-  }
+    const regex = new RegExp(
+      `^[a-zA-Z0-9._%+-]+@(${allowedProviders.join("|")})\\.(${allowedTLDs.join("|")})$`,
+      "i"
+    );
+    if (!trimmed) {
+      setErrors((prev) => ({ ...prev, email: "Email is required." }));
+      emailRef.current?.focus();
+      return false;
+    }
 
-  if (!regex.test(trimmed)) {
-    setErrors((prev) => ({
-      ...prev,
-      email: "Please enter a valid email address",
-    }));
-    emailRef.current?.focus();
-    return false;
-  }
+    if (!regex.test(trimmed)) {
+      setErrors((prev) => ({
+        ...prev,
+        email: "Please enter a valid email address.",
+      }));
+      emailRef.current?.focus();
+      return false;
+    }
 
-  setErrors((prev) => ({ ...prev, email: "" }));
-  return true;
-};
+    setErrors((prev) => ({ ...prev, email: "" }));
+    return true;
+  };
 
   const validatePassword = () => {
-  const trimmed = password.trim(); 
-  const regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+    const trimmed = password.trim();
+    const regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
 
-  if (!trimmed) {
-    setErrors({ password: "Password is required." });
-    passwordRef.current?.focus();
-    return false;
-  }
-  if (!regex.test(trimmed)) {
-    setErrors({
-      password: "Password must be 8+ chars with uppercase, lowercase, and a number.",
-    });
-    passwordRef.current?.focus();
-    return false;
-  }
+    if (!trimmed) {
+      setErrors({ password: "Password is required." });
+      passwordRef.current?.focus();
+      return false;
+    }
+    if (!regex.test(trimmed)) {
+      setErrors({
+        password: "Password must be at least 8 characters and include uppercase, lowercase, and number.",
+      });
+      passwordRef.current?.focus();
+      return false;
+    }
 
-  setErrors((prev) => ({ ...prev, password: "" }));
-  return true;
-};
+    setErrors((prev) => ({ ...prev, password: "" }));
+    return true;
+  };
 
   const handleLogin = async (e) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  if (!validateEmail()) return;   
-  if (!validatePassword()) return; 
+    if (!validateEmail()) return;
+    if (!validatePassword()) return;
 
+    setLoading(true);
 
-  setLoading(true);
+    try {
+      const res = await fetch(apiUrl("/login"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: email.trim(),
+          password: password.trim(),
+          rememberMe,
+        }),
+      });
 
-  try {
-    const res = await fetch(apiUrl("/login"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: email.trim(),
-        password: password.trim(),
-        rememberMe,
-      }),
-    });
+      const data = await res.json();
 
-    const data = await res.json();
+      if (!res.ok) {
+        notify.error(data.message || "Login failed.");
 
-    if (!res.ok) {
+        if (data.message === "User not found") {
+          setErrors({ email: "User not found." });
+        } else if (data.message === "Incorrect password") {
+          setErrors({ password: "Incorrect password." });
+        } else {
+          setErrors({ password: "Login failed." });
+        }
 
-  notify.error(data.message || "Login failed");
+        setLoading(false);
+        return;
+      }
+      if (res.ok) {
+        setAuthSession(data.token, data.user.role, rememberMe);
+        if (rememberMe) {
+          setSavedLoginCredentials(email.trim(), password.trim());
+        } else {
+          clearSavedLoginCredentials();
+        }
 
-  if (data.message === "User not found") {
-    setErrors({ email: "No account found with this email." });
-  } else if (data.message === "Incorrect password") {
-    setErrors({ password: "Incorrect password." });
-  } else {
-    setErrors({ password: "Login failed." });
-  }
+        notify.success(`Welcome, ${data.user.fullName}`);
 
-  setLoading(false);
-  return;
-}
-    if (res.ok) {
-  setAuthSession(data.token, data.user.role, rememberMe);
-  if (rememberMe) {
-    setSavedLoginCredentials(email.trim(), password.trim());
-  } else {
-    clearSavedLoginCredentials();
-  }
-
-  notify.success(`Welcome, ${data.user.fullName}`);
-
-  setTimeout(() => {
-    if (data.user.role === "admin") {
-      router.replace("/admin/dashboard");
-    } else {
-      router.replace("/services");
+        setTimeout(() => {
+          if (data.user.role === "admin") {
+            router.replace("/admin/dashboard");
+          } else {
+            router.replace("/services");
+          }
+        });
+      }
+    } catch (err) {
+      notify.error("Server error. Please try again.");
+    } finally {
+      setLoading(false);
     }
-  },);
-}
-
-  } catch (err) {
-    notify.error("Server error. Please try again.");
-  } finally {
-    setLoading(false);
-  }
-};
-
+  };
 
   return (
-    <div className="min-h-screen flex bg-white"> 
+    <div className="min-h-screen flex bg-white">
       <div className="hidden md:block w-1/2">
         <img
           src="/login.png"
-          alt="side"
+          alt=""
           className="w-full h-full object-cover brightness-90"
         />
-      </div> 
+      </div>
       <div className="w-full md:w-1/2 flex items-center justify-center bg-pink-50 px-8 py-12">
         <div className="w-full max-w-md">
           <Logo />
 
           <h2 className="text-3xl font-bold text-center text-gray-900 mb-2">
-            Welcome Back
+            Login to Your Account
           </h2>
           <p className="text-center text-gray-400 mb-8">
-            Login to continue your beauty journey
+            Welcome back. Please enter your details.
           </p>
 
-          <form className="space-y-6" onSubmit={handleLogin}> 
+          <form className="space-y-6" onSubmit={handleLogin}>
             <TextInput
               ref={emailRef}
               label="Email Address"
@@ -198,7 +200,7 @@ const regex = new RegExp(
               error={errors.email}
               disabled={loading}
             />
- 
+
             <PasswordInput
               ref={passwordRef}
               label="Password"
@@ -223,23 +225,19 @@ const regex = new RegExp(
                 Remember me
               </label>
               <p className="text-right text-sm text-pink-500 hover:underline">
-                <Link href="/forgot-password">Forgot Password?</Link>
+                <Link href="/forgot-password">Forgot password?</Link>
               </p>
             </div>
 
-            <Button
-              type="submit"
-              fullWidth
-              disabled={loading}
-            >
+            <Button type="submit" fullWidth disabled={loading}>
               {loading ? "Logging in..." : "Login"}
             </Button>
           </form>
- 
+
           <div className="flex items-center my-6">
             <hr className="flex-grow border-gray-300" />
             <span className="mx-3 text-gray-500 text-sm">
-              Or continue with
+              or continue with
             </span>
             <hr className="flex-grow border-gray-300" />
           </div>
@@ -249,7 +247,7 @@ const regex = new RegExp(
           <p className="text-center text-sm mt-6 text-gray-500">
             Don&apos;t have an account?
             <Link href="/signup" className="text-pink-500 font-semibold ml-1">
-              Sign Up
+              Sign up
             </Link>
           </p>
         </div>

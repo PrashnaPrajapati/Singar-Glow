@@ -28,6 +28,11 @@ const faqs = [
       "Appointment changes depend on provider availability. Please request changes as early as possible.",
   },
   {
+    question: "Why is my account blocked?",
+    answer:
+      "Your account may be blocked if there are repeated policy violations, suspicious activity, abusive behavior, or repeated booking issues. For privacy and security, the exact reason may not be shown on the login page. Please contact support for help reviewing your account.",
+  },
+  {
     question: "How do I contact support?",
     answer:
       "Use the Help Center for guidance, or contact Singar Glow through the phone and email details shown in the footer.",

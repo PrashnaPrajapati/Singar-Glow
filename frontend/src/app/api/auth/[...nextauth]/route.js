@@ -1,6 +1,6 @@
 import NextAuth from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
-import db from "../../../../../backend/db"; 
+import db from "../../../../../../backend/db"; 
 
 export const authOptions = {
   providers: [
@@ -9,7 +9,7 @@ export const authOptions = {
       clientSecret: process.env.AUTH_GOOGLE_SECRET,
     }),
   ],
-  secret: process.env.NEXTAUTH_SECRET,
+  secret: process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET,
   callbacks: {
     async signIn({ user, account, profile }) { 
       const [existing] = await db.promise().query(

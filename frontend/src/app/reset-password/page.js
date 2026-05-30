@@ -5,8 +5,8 @@ import { Suspense, useState, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import Button from "@/components/Button";
-
-function ResetPasswordContent() {
+ 
+function ResetPasswordContent() { 
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [message, setMessage] = useState(null);
@@ -102,6 +102,7 @@ function ResetPasswordContent() {
           {/* New Password */}
           <div className="relative">
             <input
+              id="new-password"
               ref={newPasswordRef}
               type={showPassword ? "text" : "password"}
               placeholder="New Password"
@@ -115,31 +116,34 @@ function ResetPasswordContent() {
                   }
                 }
               }}
-              className="w-full p-3 border border-gray-300 rounded focus:outline-pink-500 text-gray-900 placeholder-gray-400"
+              className="w-full p-3 border border-gray-300 rounded text-gray-900 placeholder-gray-400"
             />
-            <span
-              className="absolute right-3 top-3 cursor-pointer"
+            <button
+              type="button"
+              className="absolute right-3 top-3 rounded text-gray-600"
               onClick={() => setShowPassword(!showPassword)}
-            >
+            > 
               {showPassword ? <EyeOff /> : <Eye />}
-            </span>
+            </button>
           </div>
  
           <div className="relative">
             <input
+              id="confirm-new-password"
               ref={confirmPasswordRef}
               type={showConfirm ? "text" : "password"}
               placeholder="Confirm New Password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded focus:outline-pink-500 text-gray-900 placeholder-gray-400"
+              className="w-full p-3 border border-gray-300 rounded text-gray-900 placeholder-gray-400"
             />
-            <span
-              className="absolute right-3 top-3 cursor-pointer"
+            <button
+              type="button"
+              className="absolute right-3 top-3 rounded text-gray-600"
               onClick={() => setShowConfirm(!showConfirm)}
-            >
+            > 
               {showConfirm ? <EyeOff /> : <Eye />}
-            </span>
+            </button>
           </div>
 
           {error && <p className="text-red-600 text-sm">{error}</p>}

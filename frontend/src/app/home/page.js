@@ -89,7 +89,7 @@ export default function HomePage() {
 
   const visibleServices = services.slice(page * itemsPerPage, (page + 1) * itemsPerPage);
   const exploreServicesHref = "/services";
-  const getStartedHref = isLoggedIn ? "/services" : "/signup";
+  const getStartedHref = isLoggedIn ? "/services" : "/login";
 
   const handleLogout = () => {
     toast(
@@ -175,9 +175,9 @@ export default function HomePage() {
         <div className="absolute inset-0">
           <Image
             src="/spa.png"
-            alt="Beauty and wellness service"
-            fill
+            fill 
             priority
+            alt=""
             className="object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-r from-white via-white/88 to-white/20" />
@@ -266,8 +266,8 @@ export default function HomePage() {
                 <div className="aspect-[4/3] w-full relative overflow-hidden bg-rose-50">
                   <Image 
                   src={service.image} 
-                  alt={service.name} 
-                  fill 
+                  fill  
+                  alt=""
                   className="object-cover transition duration-500 group-hover:scale-105" 
                   />
                 </div>
@@ -297,16 +297,14 @@ export default function HomePage() {
               onClick={handleBack} 
               disabled={page === 0} 
               className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              aria-label="Previous services"
-            >
+            > 
               <ChevronLeft size={18} />
             </button>
             <button 
               onClick={handleNext} 
               disabled={(page + 1) * itemsPerPage >= services.length} 
               className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-gray-950 text-white shadow-sm hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              aria-label="Next services"
-            >
+            > 
               <ChevronRight size={18} />
             </button>
           </div>

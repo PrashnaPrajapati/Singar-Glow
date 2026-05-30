@@ -1,10 +1,11 @@
 "use client";
 
 import { apiUrl } from "@/lib/apiConfig";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Footer from "@/components/Footer"; 
-import { ToastContainer, toast } from "react-toastify";
+import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { io } from "socket.io-client";
 import Sidebar from "@/components/Sidebar";
 import Navbar from "@/components/Navbar";
 import Button from "@/components/Button";
@@ -32,9 +33,69 @@ function parseJwt(token) {
   }
 }
 
+const RESCHEDULE_CUTOFF_MS = 12 * 60 * 60 * 1000;
+const CANCELLATION_CHARGE_RATE = 0.15;
+const paidPaymentStatuses = new Set(["completed", "success", "paid"]);
+const createEmptyBookings = () => ({ upcoming: [], completed: [], missed: [], cancelled: [] });
+const rescheduleCutoffMessage =
+  "Bookings can only be rescheduled at least 12 hours before the appointment.";
+
+function getBookingDateValue(booking) {
+  return booking?.booking_date?.split("T")[0] || "";
+}
+
+function getBookingDateTime(booking) {
+  const date = getBookingDateValue(booking);
+  const time = String(booking?.booking_time || "").slice(0, 5);
+  if (!date || !time) return null;
+
+  const bookingDateTime = new Date(`${date}T${time}:00`);
+  return Number.isNaN(bookingDateTime.getTime()) ? null : bookingDateTime;
+}
+
+function canRescheduleBooking(booking) {
+  const bookingDateTime = getBookingDateTime(booking);
+  return Boolean(bookingDateTime && bookingDateTime.getTime() - Date.now() >= RESCHEDULE_CUTOFF_MS);
+}
+
+function formatRupees(value) {
+  return `Rs. ${Number(value || 0).toLocaleString()}`;
+}
+
+function getPaymentDisplay(payment) {
+  const status = String(payment?.status || "completed").toLowerCase();
+  const hasCancelledBookings = Number(payment?.cancelledBookingCount || 0) > 0;
+
+  if (hasCancelledBookings && paidPaymentStatuses.has(status)) {
+    return {
+      label: "Partially Refunded",
+      className: "bg-amber-50 text-amber-700",
+    };
+  }
+
+  if (status === "cancelled" || status === "failed") {
+    return {
+      label: status,
+      className: "bg-red-50 text-red-700",
+    };
+  }
+
+  if (status === "pending") {
+    return {
+      label: "Pending",
+      className: "bg-blue-50 text-blue-700",
+    };
+  }
+
+  return {
+    label: status,
+    className: "bg-emerald-50 text-emerald-700",
+  };
+}
+
 export default function UserDashboard() {
   const [isOpen, setIsOpen] = useState(false);
-  const [bookings, setBookings] = useState({ upcoming: [], completed: [], cancelled: [] });
+  const [bookings, setBookings] = useState(createEmptyBookings);
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState(null);
   const [userId, setUserId] = useState(null); 
@@ -51,7 +112,9 @@ export default function UserDashboard() {
 
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
+  const [feedbackPromptDismissed, setFeedbackPromptDismissed] = useState(false);
   const [currentBooking, setCurrentBooking] = useState(null);
  
   const [newDate, setNewDate] = useState("");
@@ -60,13 +123,26 @@ export default function UserDashboard() {
   const [homeAddress, setHomeAddress] = useState(""); 
   const [reason, setReason] = useState(""); 
   const [bookedSlots, setBookedSlots] = useState([]);
+  const [showCancellationCharge, setShowCancellationCharge] = useState(false);
  
   const [reasonCustom, setReasonCustom] = useState("");
  
   const [rating, setRating] = useState(0);
   const [reviewText, setReviewText] = useState("");
+  const [privateFeedbackText, setPrivateFeedbackText] = useState("");
+  const rescheduleSocketRef = useRef(null);
+  const rescheduleDateRef = useRef("");
+  const heldRescheduleSlotRef = useRef(null);
 
   const timeSlots = ["09:00","10:00","11:00","12:00","14:00","15:00","16:00","17:00","18:00"];
+
+  const releaseHeldRescheduleSlot = useCallback(() => {
+    const heldSlot = heldRescheduleSlotRef.current;
+    if (!heldSlot || !rescheduleSocketRef.current) return;
+
+    rescheduleSocketRef.current.emit("release_booking_slot", heldSlot);
+    heldRescheduleSlotRef.current = null;
+  }, []);
 
   useEffect(() => {
   if (!token) return;
@@ -81,7 +157,7 @@ export default function UserDashboard() {
     .catch(() => setUser(null));
 }, [token]);
 
-  useEffect(() => {
+  const fetchPaymentHistory = useCallback(() => {
     if (!token) return;
 
     setPaymentsLoading(true);
@@ -103,6 +179,10 @@ export default function UserDashboard() {
       })
       .finally(() => setPaymentsLoading(false));
   }, [token]);
+
+  useEffect(() => {
+    fetchPaymentHistory();
+  }, [fetchPaymentHistory]);
  
   useEffect(() => {
     setMounted(true);
@@ -134,27 +214,125 @@ export default function UserDashboard() {
               status: booking.status,
               address: booking.address,
               location_type: booking.location_type || "salon",
-              services: booking.package_id
-                ? [{ name: booking.package_name, price: booking.package_price }]
-                : [{ name: booking.service_name, price: booking.service_price }],
+              services: booking.custom_service_names
+                ? booking.custom_service_names.split(",").map((name) => ({
+                    name: name.trim(),
+                    price: null,
+                  }))
+                : booking.package_id
+                  ? [{ name: booking.package_name, price: booking.package_price }]
+                  : [{ name: booking.service_name, price: booking.service_price }],
 
-              total_amount: booking.package_id
+              total_amount: booking.custom_service_price || (booking.package_id
                 ? booking.package_price
-                : booking.service_price,
+                : booking.service_price),
+              is_custom_booking: Boolean(booking.custom_service_names),
               review_submitted: booking.feedback_submitted || false,
+              private_feedback_submitted: booking.private_feedback_submitted || false,
             });
           }
           return acc;
-        }, { upcoming: [], completed: [], cancelled: [] });
+        }, createEmptyBookings());
 
         setBookings(groupedBookings);
         setLoading(false);
       })
       .catch(() => {
-        setBookings({ upcoming: [], completed: [], cancelled: [] });
+        setBookings(createEmptyBookings());
         setLoading(false);
       });
   }, []);
+
+  useEffect(() => {
+    rescheduleDateRef.current = newDate;
+  }, [newDate]);
+
+  useEffect(() => {
+    if (
+      loading ||
+      feedbackPromptDismissed ||
+      showFeedbackModal ||
+      showReviewModal ||
+      showCancelModal ||
+      showRescheduleModal
+    ) {
+      return;
+    }
+
+    const bookingNeedingFeedback = bookings.completed.find((booking) => !booking.private_feedback_submitted);
+    if (!bookingNeedingFeedback) return;
+
+    setCurrentBooking(bookingNeedingFeedback);
+    setPrivateFeedbackText("");
+    setFeedbackPromptDismissed(true);
+    setShowFeedbackModal(true);
+  }, [
+    bookings.completed,
+    feedbackPromptDismissed,
+    loading,
+    showCancelModal,
+    showFeedbackModal,
+    showRescheduleModal,
+    showReviewModal,
+  ]);
+
+  useEffect(() => {
+    if (!token) return;
+
+    const bookingSocket = io(apiUrl(""));
+    rescheduleSocketRef.current = bookingSocket;
+
+    const addBlockedSlot = ({ date: eventDate, slot }) => {
+      if (eventDate !== rescheduleDateRef.current || !slot) return;
+      setBookedSlots((current) => (current.includes(slot) ? current : [...current, slot]));
+    };
+
+    const removeBlockedSlot = ({ date: eventDate, slot }) => {
+      if (eventDate !== rescheduleDateRef.current || !slot) return;
+      setBookedSlots((current) => current.filter((item) => item !== slot));
+    };
+
+    const handleHoldFailed = ({ date: eventDate, slot }) => {
+      if (eventDate !== rescheduleDateRef.current || heldRescheduleSlotRef.current?.slot !== slot) return;
+
+      heldRescheduleSlotRef.current = null;
+      setNewTime("");
+      setBookedSlots((current) => (current.includes(slot) ? current : [...current, slot]));
+      toast.error("That time slot was just selected by another customer. Please choose another time.");
+    };
+
+    bookingSocket.on("booking_slot_held", addBlockedSlot);
+    bookingSocket.on("booking_slot_booked", addBlockedSlot);
+    bookingSocket.on("booking_slot_released", removeBlockedSlot);
+    bookingSocket.on("booking_slot_hold_failed", handleHoldFailed);
+
+    return () => {
+      releaseHeldRescheduleSlot();
+      bookingSocket.off("booking_slot_held", addBlockedSlot);
+      bookingSocket.off("booking_slot_booked", addBlockedSlot);
+      bookingSocket.off("booking_slot_released", removeBlockedSlot);
+      bookingSocket.off("booking_slot_hold_failed", handleHoldFailed);
+      bookingSocket.disconnect();
+      rescheduleSocketRef.current = null;
+    };
+  }, [releaseHeldRescheduleSlot, token]);
+
+  useEffect(() => {
+    const bookingSocket = rescheduleSocketRef.current;
+    if (!bookingSocket || !showRescheduleModal || !newDate) return;
+
+    bookingSocket.emit("join_booking_date", { date: newDate });
+
+    fetch(apiUrl(`/bookings/booked-slots?date=${newDate}`))
+      .then(res => res.json())
+      .then(data => setBookedSlots(Array.isArray(data) ? data : []))
+      .catch(() => setBookedSlots([]));
+
+    return () => {
+      releaseHeldRescheduleSlot();
+      bookingSocket.emit("leave_booking_date", { date: newDate });
+    };
+  }, [newDate, releaseHeldRescheduleSlot, showRescheduleModal]);
 
   if (!mounted) return null;
   if (!token) return <p className="p-6 text-red-500">You must be logged in.</p>;
@@ -174,6 +352,12 @@ export default function UserDashboard() {
       tone: "bg-emerald-50 text-emerald-700",
     },
     {
+      label: "Missed",
+      value: bookings.missed.length,
+      icon: Clock,
+      tone: "bg-amber-50 text-amber-700",
+    },
+    {
       label: "Cancelled",
       value: bookings.cancelled.length,
       icon: XCircle,
@@ -190,27 +374,92 @@ export default function UserDashboard() {
   const statusClasses = {
     upcoming: "bg-blue-50 text-blue-700 border-blue-100",
     completed: "bg-emerald-50 text-emerald-700 border-emerald-100",
+    missed: "bg-amber-50 text-amber-700 border-amber-100",
     cancelled: "bg-red-50 text-red-700 border-red-100",
   };
+  const filteredRescheduleTimeSlots = timeSlots.filter((slot) => {
+    if (!newDate) return true;
+    const selectedDate = new Date(`${newDate}T00:00:00`);
+    const today = new Date();
+    if (selectedDate.toDateString() !== today.toDateString()) return true;
+    return Number(slot.split(":")[0]) > today.getHours();
+  });
+  const originalRescheduleDate = getBookingDateValue(currentBooking);
+  const originalRescheduleTime = String(currentBooking?.booking_time || "").slice(0, 5);
+  const originalRescheduleLocation = currentBooking?.location_type || "salon";
+  const originalRescheduleAddress =
+    originalRescheduleLocation === "home" ? currentBooking?.address || "" : "";
+  const normalizedHomeAddress = homeAddress.trim();
+  const hasRescheduleChanges =
+    newDate !== originalRescheduleDate ||
+    newTime !== originalRescheduleTime ||
+    newLocation !== originalRescheduleLocation ||
+    (newLocation === "home" && normalizedHomeAddress !== originalRescheduleAddress);
+  const hasValidRescheduleValues =
+    Boolean(newDate && newTime && newLocation) &&
+    (newLocation !== "home" || Boolean(normalizedHomeAddress));
+  const canCurrentBookingBeRescheduled = canRescheduleBooking(currentBooking);
+  const canSaveReschedule =
+    canCurrentBookingBeRescheduled && hasRescheduleChanges && hasValidRescheduleValues;
+  const cancellationAmount = Number(currentBooking?.total_amount || 0);
+  const cancellationCharge = cancellationAmount * CANCELLATION_CHARGE_RATE;
+  const cancellationRefund = Math.max(cancellationAmount - cancellationCharge, 0);
  
   const openRescheduleModal = (booking) => {
+    if (!canRescheduleBooking(booking)) {
+      toast.error(rescheduleCutoffMessage);
+      return;
+    }
+
     setCurrentBooking(booking);
-    setNewDate(booking.booking_date.split("T")[0]);
-    setNewTime(booking.booking_time);
+    setNewDate(getBookingDateValue(booking));
+    setNewTime(String(booking.booking_time).slice(0, 5));
     setNewLocation(booking.location_type || "salon");
     setHomeAddress(booking.location_type === "home" ? booking.address : "");
     setReason("");
     setBookedSlots([]);
     setShowRescheduleModal(true);
+  };
 
-    fetch(apiUrl(`/bookings/booked-slots?date=${booking.booking_date.split("T")[0]}`))
-      .then(res => res.json())
-      .then(data => setBookedSlots(data))
-      .catch(() => setBookedSlots([]));
+  const handleRescheduleTimeSelect = (slot) => {
+    if (!newDate) return;
+
+    const currentBookingTime = String(currentBooking?.booking_time || "").slice(0, 5);
+    const isBlockedByAnotherCustomer = bookedSlots.includes(slot) && slot !== currentBookingTime;
+    if (isBlockedByAnotherCustomer) return;
+
+    if (
+      heldRescheduleSlotRef.current?.slot !== slot ||
+      heldRescheduleSlotRef.current?.date !== newDate
+    ) {
+      releaseHeldRescheduleSlot();
+    }
+
+    setNewTime(slot);
+    heldRescheduleSlotRef.current = { date: newDate, slot };
+    rescheduleSocketRef.current?.emit("hold_booking_slot", { date: newDate, slot });
+  };
+
+  const handleCancelReasonSelect = (selectedReason) => {
+    if (selectedReason === "Need to change date/location") {
+      setReason("");
+      setReasonCustom("");
+      setShowCancellationCharge(false);
+      setShowCancelModal(false);
+      if (currentBooking) openRescheduleModal(currentBooking);
+      return;
+    }
+
+    setReason(selectedReason);
   };
 
   const handleReschedule = async () => {
     if (!currentBooking) return;
+    if (!canCurrentBookingBeRescheduled) {
+      toast.error(rescheduleCutoffMessage);
+      return;
+    }
+    if (!canSaveReschedule) return;
 
     if (!newDate || !newTime || !newLocation) return alert("Please select date, time, and location");
     if (newLocation === "home" && (!homeAddress || homeAddress.trim() === "")) {
@@ -248,8 +497,10 @@ export default function UserDashboard() {
       }));
 
       setShowRescheduleModal(false);
+      releaseHeldRescheduleSlot();
       setHomeAddress("");
       setReason("");
+      toast.success(data.message || "Booking rescheduled successfully.");
     } catch (err) {
       console.error(err);
       alert("Something went wrong");
@@ -260,6 +511,7 @@ export default function UserDashboard() {
     setCurrentBooking(booking);
     setReason("");
     setReasonCustom("");
+    setShowCancellationCharge(false);
     setShowCancelModal(true);
   };
 
@@ -290,9 +542,12 @@ export default function UserDashboard() {
       setShowCancelModal(false);
       setReason("");
       setReasonCustom("");
+      setShowCancellationCharge(false);
+      fetchPaymentHistory();
+      toast.success(data.message || "Booking cancelled.");
     } catch (err) {
       console.error(err);
-      alert("Something went wrong");
+      toast.error("Something went wrong");
     }
   };
  
@@ -300,7 +555,60 @@ export default function UserDashboard() {
     setCurrentBooking(booking);
     setRating(0);
     setReviewText("");
+    setShowFeedbackModal(false);
     setShowReviewModal(true);
+  };
+
+  const closeReviewModal = () => {
+    setFeedbackPromptDismissed(true);
+    setShowReviewModal(false);
+  };
+
+  const closeFeedbackModal = () => {
+    setFeedbackPromptDismissed(true);
+    setShowFeedbackModal(false);
+    setPrivateFeedbackText("");
+  };
+
+  const handleSubmitPrivateFeedback = async () => {
+    if (!currentBooking) return;
+
+    if (privateFeedbackText.trim() === "") {
+      toast.error("Please write your feedback first.");
+      return;
+    }
+
+    try {
+      const res = await fetch(apiUrl(`/bookings/${currentBooking.id}/feedback`), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ feedback: privateFeedbackText }),
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        toast.error(data?.message || "Feedback submission failed");
+        return;
+      }
+
+      setBookings((prev) => ({
+        ...prev,
+        completed: prev.completed.map((booking) =>
+          booking.id === currentBooking.id
+            ? { ...booking, private_feedback_submitted: true }
+            : booking
+        ),
+      }));
+
+      closeFeedbackModal();
+      toast.success("Thank you for your feedback!");
+    } catch (err) {
+      console.error(err);
+      toast.error("Something went wrong. Please try again.");
+    }
   };
 
   const handleSubmitReview = async () => {
@@ -339,7 +647,7 @@ export default function UserDashboard() {
         ),
       }));
 
-      setShowReviewModal(false);
+      closeReviewModal();
       setRating(0);
       setReviewText("");
       toast.success("Thank you for your review!");
@@ -350,7 +658,7 @@ export default function UserDashboard() {
   };
  
   return (
-    <div className="min-h-screen bg-[#fffaf7]">
+    <div className="min-h-screen bg-[#ffffff]">
       <Sidebar isOpen={isOpen} setIsOpen={setIsOpen} />
       <div className={`flex flex-col min-h-screen ${isOpen ? "md:ml-70" : "pl-16 md:pl-8"}`}>
       <Navbar />
@@ -370,12 +678,12 @@ export default function UserDashboard() {
                     View your bookings, reschedule upcoming appointments, cancel when needed, and leave reviews after completed services.
                   </p>
                 </div>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:min-w-[560px]">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5 xl:min-w-[700px]">
                   {dashboardStats.map((stat) => {
                     const StatIcon = stat.icon;
 
                     return (
-                      <div key={stat.label} className="rounded-lg border border-rose-100 bg-[#fffaf7] p-4">
+                      <div key={stat.label} className="rounded-lg border border-rose-100 p-4">
                         <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-lg ${stat.tone}`}>
                           <StatIcon size={20} />
                         </div>
@@ -390,31 +698,33 @@ export default function UserDashboard() {
               </div>
             </section>
 
-            <section className="mb-6 flex flex-col gap-4 rounded-lg border border-rose-100 bg-white p-4 shadow-sm md:flex-row md:items-center md:justify-between">
+            <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_420px] xl:items-start">
               <div>
-                <p className="text-sm font-bold uppercase tracking-wider text-rose-600">
-                  My Bookings
-                </p>
-                <h2 className="mt-1 text-xl font-bold text-gray-950">
-                  {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} appointments
-                </h2>
-              </div>
-              <div className="grid grid-cols-3 rounded-lg border border-rose-200 bg-[#fffaf7] p-1">
-                {["upcoming", "completed", "cancelled"].map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => setActiveTab(tab)}
-                    className={`rounded-md px-4 py-2 text-sm font-semibold capitalize transition ${
-                      activeTab === tab
-                        ? "bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-sm"
-                        : "text-gray-600 hover:bg-white hover:text-rose-700"
-                    }`}
-                  >
-                    {tab}
-                  </button>
-                ))}
-              </div>
-            </section>
+                <section className="mb-6 flex flex-col gap-4 rounded-lg border border-rose-100 bg-white p-4 shadow-sm md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <p className="text-sm font-bold uppercase tracking-wider text-rose-600">
+                      My Bookings
+                    </p>
+                    <h2 className="mt-1 text-xl font-bold text-gray-950">
+                      {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} appointments
+                    </h2>
+                  </div>
+                  <div className="grid grid-cols-2 rounded-lg border border-rose-200 bg-[#fffaf7] p-1 sm:grid-cols-4">
+                    {["upcoming", "completed", "missed", "cancelled"].map((tab) => (
+                      <button
+                        key={tab}
+                        onClick={() => setActiveTab(tab)}
+                        className={`rounded-md px-4 py-2 text-sm font-semibold capitalize transition ${
+                          activeTab === tab
+                            ? "bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-sm"
+                            : "text-gray-600 hover:bg-white hover:text-rose-700"
+                        }`}
+                      >
+                        {tab}
+                      </button>
+                    ))}
+                  </div>
+                </section>
  
           {loading ? (
             <div className="rounded-lg border border-rose-100 bg-white p-10 text-center text-gray-500 shadow-sm">
@@ -429,8 +739,11 @@ export default function UserDashboard() {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-              {filteredBookings.map((b, index) => (
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              {filteredBookings.map((b, index) => {
+                const canReschedule = canRescheduleBooking(b);
+
+                return (
                 <article
                   key={`${b.id}-${activeTab}-${index}`}
                   className="rounded-lg border border-rose-100 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:border-rose-200 hover:shadow-lg"
@@ -441,7 +754,9 @@ export default function UserDashboard() {
                         Booking ID: {b.id}
                       </p>
                       <h3 className="mt-2 text-lg font-semibold text-gray-950">
-                        {b.package_id
+                        {b.is_custom_booking
+                          ? `Custom Services: ${b.services.map((s) => s.name).join(", ")}`
+                          : b.package_id
                           ? `Package: ${b.services[0].name}`
                           : b.services.map((s) => s.name).join(", ")
                         }
@@ -452,7 +767,7 @@ export default function UserDashboard() {
                     </span>
                   </div>
 
-                  <div className="space-y-3 rounded-lg bg-[#fffaf7] p-4 text-sm text-gray-600">
+                  <div className="space-y-3 rounded-lg p-4 text-sm text-gray-600">
                     <p className="flex items-center gap-2">
                       <CalendarCheck size={16} className="text-rose-600" />
                       {b.booking_date.split("T")[0]}
@@ -476,7 +791,14 @@ export default function UserDashboard() {
  
                   {b.status === "upcoming" && (
                     <div className="mt-5 flex gap-2">
-                      <Button onClick={() => openRescheduleModal(b)} className="flex flex-1 items-center justify-center gap-2 py-2">
+                      <Button
+                        onClick={() => openRescheduleModal(b)}
+                        disabled={!canReschedule}
+                        title={canReschedule ? "Reschedule booking" : rescheduleCutoffMessage}
+                        className={`flex flex-1 items-center justify-center gap-2 py-2 ${
+                          canReschedule ? "" : "cursor-not-allowed opacity-50"
+                        }`}
+                      >
                         <RotateCcw size={16} />
                         Reschedule
                       </Button>
@@ -495,11 +817,14 @@ export default function UserDashboard() {
                     </div>
                   )}
                 </article>
-              ))}
+                );
+              })}
             </div>
           )}
-            <section className="mt-8 rounded-lg border border-rose-100 bg-white p-6 shadow-sm">
-              <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+              </div>
+
+            <section className="rounded-lg border border-rose-100 bg-white p-6 shadow-sm">
+              <div className="mb-5 flex flex-col gap-3">
                 <div>
                   <p className="text-sm font-bold uppercase tracking-wider text-rose-600">
                     Payment History
@@ -513,7 +838,7 @@ export default function UserDashboard() {
                     Total spent
                   </p>
                   <p className="text-2xl font-bold text-gray-950">
-                    Rs. {paymentSummary.totalSpent.toLocaleString()}
+                    {formatRupees(paymentSummary.totalSpent)}
                   </p>
                 </div>
               </div>
@@ -532,43 +857,65 @@ export default function UserDashboard() {
                 </div>
               ) : (
                 <div className="overflow-hidden rounded-lg border border-rose-100">
-                  <div className="hidden grid-cols-[1.4fr_1fr_0.8fr_0.8fr] gap-4 bg-[#fffaf7] px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-500 md:grid">
+                  <div className="hidden grid-cols-[1.4fr_1fr_0.9fr_0.8fr] gap-4 bg-[#fffaf7] px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-500 md:grid">
                     <span>Transaction</span>
                     <span>Booking</span>
                     <span>Status</span>
                     <span className="text-right">Amount</span>
                   </div>
                   <div className="divide-y divide-rose-100">
-                    {paymentSummary.payments.slice(0, 5).map((payment) => (
-                      <article
-                        key={payment.id || payment.transaction_id}
-                        className="grid gap-3 px-4 py-4 md:grid-cols-[1.4fr_1fr_0.8fr_0.8fr] md:items-center"
-                      >
-                        <div>
-                          <p className="font-semibold text-gray-950">
-                            {payment.transaction_id || payment.reference_id || `Payment ${payment.id}`}
+                    {paymentSummary.payments.slice(0, 5).map((payment) => {
+                      const paymentDisplay = getPaymentDisplay(payment);
+                      const hasCancelledBookings = Number(payment.cancelledBookingCount || 0) > 0;
+
+                      return (
+                        <article
+                          key={payment.id || payment.transaction_id}
+                          className="grid gap-3 px-4 py-4 md:grid-cols-[1.4fr_1fr_0.9fr_0.8fr] md:items-start"
+                        >
+                          <div>
+                            <p className="font-semibold text-gray-950">
+                              {payment.transaction_id || payment.reference_id || `Payment ${payment.id}`}
+                            </p>
+                            <p className="mt-1 text-xs text-gray-500">
+                              {payment.created_at
+                                ? new Date(payment.created_at).toLocaleDateString()
+                                : "Date unavailable"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600">
+                              {payment.items || `Booking ${payment.booking_ids}`}
+                            </p>
+                            {hasCancelledBookings && (
+                              <p className="mt-1 text-xs font-medium text-amber-700">
+                                {payment.cancelledBookingCount} cancelled booking
+                                {payment.cancelledBookingCount === 1 ? "" : "s"} included
+                              </p>
+                            )}
+                          </div>
+                          <div>
+                            <span className={`w-fit rounded-full px-3 py-1 text-xs font-semibold capitalize ${paymentDisplay.className}`}>
+                              {paymentDisplay.label}
+                            </span>
+                            {hasCancelledBookings && (
+                              <div className="mt-2 space-y-1 text-xs text-gray-500">
+                                <p>Charge: {formatRupees(payment.cancellationCharge)}</p>
+                                <p>Refund: {formatRupees(payment.refundAmount)}</p>
+                              </div>
+                            )}
+                          </div>
+                          <p className="font-bold text-gray-950 md:text-right">
+                            {formatRupees(payment.amount)}
                           </p>
-                          <p className="mt-1 text-xs text-gray-500">
-                            {payment.created_at
-                              ? new Date(payment.created_at).toLocaleDateString()
-                              : "Date unavailable"}
-                          </p>
-                        </div>
-                        <p className="text-sm text-gray-600">
-                          {payment.items || `Booking ${payment.booking_ids}`}
-                        </p>
-                        <span className="w-fit rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold capitalize text-emerald-700">
-                          {payment.status || "completed"}
-                        </span>
-                        <p className="font-bold text-gray-950 md:text-right">
-                          Rs. {Number(payment.amount || 0).toLocaleString()}
-                        </p>
-                      </article>
-                    ))}
+                        </article>
+                      );
+                    })}
                   </div>
                 </div>
               )}
             </section>
+            </div>
           </div>
  
           {showRescheduleModal && (
@@ -582,25 +929,24 @@ export default function UserDashboard() {
                   value={newDate}                  
                   min={new Date().toISOString().split('T')[0]}                  
                   onChange={(e) => {
+                    releaseHeldRescheduleSlot();
                     setNewDate(e.target.value);
-                    fetch(apiUrl(`/bookings/booked-slots?date=${e.target.value}`))
-                      .then(res => res.json())
-                      .then(data => setBookedSlots(data))
-                      .catch(() => setBookedSlots([]));
+                    setNewTime("");
                   }}
                   className=" text-gray-700 w-full mb-3 p-2 border rounded"
                 />
 
                 <label className="block mb-3 text-gray-700 font-semibold">Choose a Time Slot</label>
                 <div className="grid grid-cols-3 gap-2 mb-4">
-                  {timeSlots.map((slot) => {
-                    const isBooked = bookedSlots.includes(slot) && slot !== currentBooking.booking_time;
+                  {filteredRescheduleTimeSlots.map((slot) => {
+                    const currentBookingTime = String(currentBooking?.booking_time || "").slice(0, 5);
+                    const isBooked = bookedSlots.includes(slot) && slot !== currentBookingTime;
                     return (
                       <button
                         key={slot}
                         type="button"
                         disabled={isBooked}
-                        onClick={() => setNewTime(slot)}
+                        onClick={() => handleRescheduleTimeSelect(slot)}
                         className={`flex items-center justify-center gap-2 border rounded-lg py-2 text-sm transition
                           ${isBooked
                             ? "bg-gray-200 text-gray-400 cursor-not-allowed"
@@ -609,7 +955,9 @@ export default function UserDashboard() {
                             : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
                           }`}
                       >
-                        â° {slot} {isBooked && "âŒ"}
+                        <Clock size={14} />
+                        <span>{slot}</span>
+                        {isBooked && <XCircle size={14} />}
                       </button>
                     );
                   })}
@@ -656,12 +1004,20 @@ export default function UserDashboard() {
                 <div className="flex gap-3 mt-4">
                   <button
                     onClick={handleReschedule}
-                    className="flex-1 py-2 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded hover:scale-105 transition"
+                    disabled={!canSaveReschedule}
+                    className={`flex-1 py-2 rounded text-white transition ${
+                      canSaveReschedule
+                        ? "bg-gradient-to-r from-pink-500 to-purple-500 hover:scale-105"
+                        : "cursor-not-allowed bg-gray-300"
+                    }`}
                   >
                     Save
                   </button>
                   <button
-                    onClick={() => setShowRescheduleModal(false)}
+                    onClick={() => {
+                      releaseHeldRescheduleSlot();
+                      setShowRescheduleModal(false);
+                    }}
                     className="flex-1 py-2 bg-gray-300 text-gray-700 rounded hover:scale-105 transition"
                   >
                     Cancel
@@ -671,60 +1027,124 @@ export default function UserDashboard() {
             </div>
           )}
  
-           {showCancelModal && (
+          {showCancelModal && (
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
               <div className="bg-white p-6 rounded-xl w-96 max-h-[90vh] overflow-y-auto">
                 <h2 className="text-gray-800 text-lg font-bold mb-4">Cancel Booking</h2>
                 <p className="text-gray-700 mb-3">Are you sure you want to cancel this booking?</p>
 
-                <label className="text-gray-700 block mb-2 font-semibold">Select a Reason</label>
-                <div className="grid grid-cols-1 gap-2 mb-3">
-                  {[
-                    "Selected wrong service",
-                    "Change of plans",
-                    "Need to change date/location",
-                    "Emergency/personal reasons",
-                    "Service no longer needed",
-                    "Found another salon",
-                    "Other",
-                  ].map((r) => (
-                    <button
-                      key={r}
-                      type="button"
-                      onClick={() => setReason(r)}
-                      className={`w-full text-left py-2 px-3 border rounded-lg transition
-                        ${reason === r
-                          ? "bg-gradient-to-r from-pink-500 to-purple-500 text-white border-pink-400"
-                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
-                        }`}
-                    >
-                      {r}
-                    </button>
-                  ))}
-                </div>
+                {!showCancellationCharge ? (
+                  <>
+                    <label className="text-gray-700 block mb-2 font-semibold">Select a Reason</label>
+                    <div className="grid grid-cols-1 gap-2 mb-3">
+                      {[
+                        "Selected wrong service",
+                        "Change of plans",
+                        "Need to change date/location",
+                        "Emergency/personal reasons",
+                        "Service no longer needed",
+                        "Found another salon",
+                        "Other",
+                      ].map((r) => (
+                        <button
+                          key={r}
+                          type="button"
+                          onClick={() => handleCancelReasonSelect(r)}
+                          className={`w-full text-left py-2 px-3 border rounded-lg transition
+                            ${reason === r
+                              ? "bg-gradient-to-r from-pink-500 to-purple-500 text-white border-pink-400"
+                              : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
+                            }`}
+                        >
+                          {r}
+                        </button>
+                      ))}
+                    </div>
 
-                {reason === "Other" && (
-                  <div className="mb-3">
-                    <textarea
-                      value={reasonCustom}
-                      onChange={(e) => setReasonCustom(e.target.value)}
-                      placeholder="Type your reason here"
-                      className="w-full p-2 border rounded text-gray-700"
-                      rows={3}
-                    />
+                    {reason === "Other" && (
+                      <div className="mb-3">
+                        <textarea
+                          value={reasonCustom}
+                          onChange={(e) => setReasonCustom(e.target.value)}
+                          placeholder="Type your reason here"
+                          className="w-full p-2 border rounded text-gray-700"
+                          rows={3}
+                        />
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="mb-4 rounded-lg border border-red-100 bg-red-50 p-4 text-sm text-red-700">
+                    <p className="font-semibold text-red-800">Cancellation charge</p>
+                    <p className="mt-1">
+                      If you cancel a confirmed booking, 15% of the total booking amount will be deducted.
+                    </p>
+                    <div className="mt-3 space-y-1 text-gray-800">
+                      <div className="flex justify-between gap-3">
+                        <span>Total booking amount</span>
+                        <span className="font-semibold">Rs. {cancellationAmount.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <span>Cancellation charge (15%)</span>
+                        <span className="font-semibold text-red-700">Rs. {cancellationCharge.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between gap-3 border-t border-red-100 pt-2">
+                        <span>Estimated refund</span>
+                        <span className="font-bold text-gray-950">Rs. {cancellationRefund.toFixed(2)}</span>
+                      </div>
+                    </div>
                   </div>
                 )}
 
                 <div className="flex gap-3 mt-4">
-                  <button
-                    onClick={() => handleCancel(reason === "Other" ? reasonCustom : reason)}
-                    className="flex-1 py-2 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded hover:scale-105 transition"
-                  >
-                    Confirm Cancel
-                  </button>
+                  {!showCancellationCharge ? (
+                    <>
+                      {reason && (
+                        <button
+                          onClick={() => setShowCancellationCharge(true)}
+                          disabled={reason === "Other" && !reasonCustom.trim()}
+                          className={`flex-1 py-2 rounded text-white transition ${
+                            reason === "Other" && !reasonCustom.trim()
+                              ? "cursor-not-allowed bg-gray-300"
+                              : "bg-gradient-to-r from-pink-500 to-purple-500 hover:scale-105"
+                          }`}
+                        >
+                          Continue
+                        </button>
+                      )}
+                      <button
+                        onClick={() => {
+                          setReason("");
+                          setReasonCustom("");
+                          setShowCancellationCharge(true);
+                        }}
+                        className="flex-1 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-100 transition"
+                      >
+                        Skip Reason
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => handleCancel(reason === "Other" ? reasonCustom : reason)}
+                        className="flex-1 py-2 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded hover:scale-105 transition"
+                      >
+                        Confirm Cancel
+                      </button>
+                      <button
+                        onClick={() => setShowCancellationCharge(false)}
+                        className="flex-1 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-100 transition"
+                      >
+                        Back
+                      </button>
+                    </>
+                  )}
                   
                   <button
-                    onClick={() => setShowCancelModal(false)}
+                    onClick={() => {
+                      setShowCancellationCharge(false);
+                      setShowCancelModal(false);
+                    }}
                     className="flex-1 py-2 bg-gray-300 text-gray-700 rounded hover:scale-105 transition"
                   >
                     Close
@@ -734,10 +1154,47 @@ export default function UserDashboard() {
             </div>
           )}
  
+          {showFeedbackModal && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+              <div className="bg-white p-6 rounded-xl w-96 max-h-[90vh] overflow-y-auto">
+                <h2 className="text-gray-800 text-lg font-bold mb-2">Help us improve</h2>
+                <p className="mb-4 text-sm text-gray-500">
+                  This feedback is private and helps us improve service quality.
+                </p>
+
+                <textarea
+                  value={privateFeedbackText}
+                  onChange={(e) => setPrivateFeedbackText(e.target.value)}
+                  placeholder="What can we improve for next time?"
+                  className="w-full p-2 border rounded text-gray-700 mb-4"
+                  rows={5}
+                />
+
+                <div className="flex gap-3 mt-4">
+                  <button
+                    onClick={handleSubmitPrivateFeedback}
+                    className="flex-1 py-2 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded hover:scale-105 transition"
+                  >
+                    Submit Feedback
+                  </button>
+                  <button
+                    onClick={closeFeedbackModal}
+                    className="flex-1 py-2 bg-gray-300 text-gray-700 rounded hover:scale-105 transition"
+                  >
+                    Maybe Later
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {showReviewModal && (
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
               <div className="bg-white p-6 rounded-xl w-96 max-h-[90vh] overflow-y-auto">
-                <h2 className="text-gray-800 text-lg font-bold mb-4">Leave Review</h2>
+                <h2 className="text-gray-800 text-lg font-bold mb-2">Leave Review</h2>
+                <p className="mb-4 text-sm text-gray-500">
+                  Share a public review about your completed service.
+                </p>
 
                 <p className="text-gray-700 mb-2">Rate your experience:</p>
                 <div className="flex gap-1 mb-4">
@@ -751,7 +1208,7 @@ export default function UserDashboard() {
                           : "bg-gray-300"
                       } cursor-pointer`}
                     >
-                      â˜…
+                      ★
                     </button>
                   ))}
                 </div>
@@ -759,7 +1216,7 @@ export default function UserDashboard() {
                 <textarea
                   value={reviewText}
                   onChange={(e) => setReviewText(e.target.value)}
-                  placeholder="Your review..."
+                  placeholder="Share your public review..."
                   className="w-full p-2 border rounded text-gray-700 mb-4"
                   rows={4}
                 />
@@ -772,7 +1229,7 @@ export default function UserDashboard() {
                     Submit Review
                   </button>
                   <button
-                    onClick={() => setShowReviewModal(false)}
+                    onClick={closeReviewModal}
                     className="flex-1 py-2 bg-gray-300 text-gray-700 rounded hover:scale-105 transition"
                   >
                     Cancel
@@ -783,8 +1240,7 @@ export default function UserDashboard() {
           )}
         </main>
         <Footer />
-        <ToastContainer position="top-center" />
-      </div>
+      </div> 
     </div>
     </div>
 

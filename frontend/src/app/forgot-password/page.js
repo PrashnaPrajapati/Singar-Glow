@@ -3,9 +3,9 @@
 import { apiUrl } from "@/lib/apiConfig";
 import { useState } from "react";
 import Button from "@/components/Button";
-
+ 
 export default function ForgotPasswordPage() {
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(""); 
   const [message, setMessage] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -34,7 +34,7 @@ export default function ForgotPasswordPage() {
       if (res.ok) {
         setMessage(data.message || "Reset instructions sent. Please check your email.");
         setToken(data.token);
-      } else { 
+      } else {
         setError(data.message || "Something went wrong.");
       }
     } catch (err) {
@@ -50,13 +50,14 @@ export default function ForgotPasswordPage() {
         <form onSubmit={handleReset} className="space-y-4">
           <label className="block text-gray-500 font-semibold">Email Address</label>
           <input
+            id="forgot-email"
             type="email"
             placeholder="Enter your email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full p-3 border border-gray-300 rounded focus:outline-pink-500 text-gray-900 placeholder-gray-400"
+            onChange={(e) => setEmail(e.target.value)} 
+            className="w-full p-3 border border-gray-300 rounded text-gray-900 placeholder-gray-400"
           />
-          {error && <p className="text-red-600 text-sm">{error}</p>}
+          {error && <p id="forgot-email-error" className="text-red-600 text-sm">{error}</p>}
           {message && <p className="text-green-600 text-sm">{message}</p>}
           {token && (
             <div className="bg-blue-50 border border-blue-200 rounded p-3 mt-4">

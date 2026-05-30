@@ -17,7 +17,7 @@ const helpItems = [
   {
     icon: UserRound,
     title: "Account support",
-    text: "Use login, signup, forgot password, and profile options to keep your account information up to date.",
+    text: "Use login, signup, forgot password, and profile options to keep your account information up to date. If your account is blocked, contact support so our team can review your account access.",
   },
   {
     icon: CreditCard,

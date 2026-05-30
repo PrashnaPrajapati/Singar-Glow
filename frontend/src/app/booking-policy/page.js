@@ -36,6 +36,11 @@ const policies = [
     text: "For salon visits, arrive on time. For home service, keep the service space ready before the provider arrives.",
   },
   {
+    icon: ShieldCheck,
+    title: "Repeated booking issues",
+    text: "Repeated cancellations, missed appointments, or misuse of booking features may lead to account restrictions. If your account is blocked, contact support for review.",
+  },
+  {
     icon: CreditCard,
     title: "Payments",
     text: "Payment status should be checked before the appointment. If payment fails, retry from the payment page or contact support.",
