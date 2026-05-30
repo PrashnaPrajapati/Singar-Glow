@@ -2,25 +2,34 @@ import Link from "next/link";
 import Button from "@/components/Button";
 import Logo from "@/components/Logo";
 import Footer from "@/components/Footer";
+import Image from "next/image";
 
-export default function HomePage() {
-  const services = [
-    {
-      title: "Makeup",
-      desc: "Professional makeup for every occasion",
-      image: "/bridal.png",
-    },
-    {
-      title: "Hair Styling",
-      desc: "Trendy hair styling by experts",
-      image: "/hair.webp",
-    },
-    {
-      title: "Spa Treatment",
-      desc: "Relaxing spa & wellness services",
-      image: "/spa.png",
-    },
-  ];
+async function getServices() {
+  try {
+    const res = await fetch("http://localhost:5001/services", {
+      cache: "no-store",
+      next: { revalidate: 0 },
+    });
+    
+    if (!res.ok) {
+      console.error("Error fetching services - Status:", res.status);
+      return [];
+    }
+    
+    const services = await res.json();
+    const servicesWithImages = services.map(service => ({
+      ...service,
+      image: `http://localhost:5001${service.image}`
+    }));
+    return servicesWithImages.slice(0, 3); 
+  } catch (error) {
+    console.error("Error fetching services:", error);
+    return [];
+  }
+}
+
+export default async function HomePage() {
+  const services = await getServices();
 
   const steps = [
     {
@@ -79,39 +88,48 @@ export default function HomePage() {
 
       <section className="bg-white">
         <div className="max-w-7xl mx-auto px-6 py-16">
-          <h2 className="text-center text-2xl font-bold bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent mb-2">
-          Our Featured Services
-        </h2>
+          <div className="text-center">
+            <h2 className="text-2xl font-bold bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent inline-block mb-2">
+              Our Featured Services
+            </h2>
+          </div>
         <p className="text-center text-gray-600 mb-10">
           Explore our wide range of beauty & wellness services
         </p>
 
         <div className="grid md:grid-cols-3 gap-8">
-          {services.map((service, i) => (
-            <div
-              key={i}
-              className="bg-white rounded-2xl shadow-md hover:shadow-lg transition overflow-hidden"
-            >
-              <div className="aspect-square w-full overflow-hidden">
-                <img
-                  src={service.image}
-                  alt={service.title}
-                  className="w-full h-full object-cover"
-                />
-              </div>
+          {services.length > 0 ? (
+            services.map((service, i) => (
+              <div
+                key={service.id || i}
+                className="bg-white rounded-2xl shadow-md hover:shadow-lg transition overflow-hidden"
+              >
+                <div className="aspect-square w-full relative">
+                  <Image
+                    src={service.image}
+                    alt={service.name}
+                    fill
+                    className="object-cover"
+                  />
+                </div>
 
-              <div className="p-6 text-center">
-                <h3 className="font-semibold text-lg mb-2">
-                  {service.title}
-                </h3>
-                <p className="text-sm text-gray-500 mb-4">
-                  {service.desc}
-                </p>
+                <div className="p-6 text-center">
+                  <h3 className="font-semibold text-lg mb-2">
+                    {service.name}
+                  </h3>
+                  <p className="text-sm text-gray-500 mb-4">
+                    {service.description}
+                  </p>
 
-                <Button className="py-2 text-sm">Book Now</Button>
+                  <Link href="/signup">
+                  <Button className="py-2 text-sm">Book Now</Button>
+                  </Link>
+                </div>
               </div>
-            </div>
-          ))}
+            ))
+          ) : (
+            <p className="col-span-3 text-center text-gray-500">No services available</p>
+          )}
         </div>
       </div>
       </section>
@@ -142,27 +160,25 @@ export default function HomePage() {
       </section>
 
       <section className="bg-white py-16">
-  <div className="max-w-4xl mx-auto px-6">
-    <div className="bg-[#fff7fa] rounded-3xl shadow-lg p-10 text-center">
-      
-      <h2 className="text-2xl md:text-3xl font-bold mb-4 bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">
-        Ready to Glow?
-      </h2>
+        <div className="max-w-4xl mx-auto px-6">
+          <div className="bg-[#fff7fa] rounded-3xl shadow-lg p-10 text-center">
+            
+            <h2 className="text-2xl md:text-3xl font-bold mb-4 bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">
+              Ready to Glow?
+            </h2>
 
-      <p className="text-gray-600 mb-6">
-        Book your first service today and experience beauty like never before
-      </p>
+            <p className="text-gray-600 mb-6">
+              Book your first service today and experience beauty like never before
+            </p>
 
-      <Link href="/signup">
-        <Button>Get Started Now</Button>
-      </Link>
+            <Link href="/signup">
+              <Button>Get Started Now</Button>
+            </Link>
 
-    </div>
-  </div>
-</section>
-
-      <Footer />
-
+          </div>
+        </div>
+      </section> 
+      <Footer /> 
     </div>
   );
 }
