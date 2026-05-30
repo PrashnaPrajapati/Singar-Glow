@@ -1,4 +1,4 @@
-const db = require("./db");
+const db = require("../db");
 const jwt = require("jsonwebtoken");
 
 let onlineUsers = new Map(); 
@@ -145,7 +145,14 @@ const initializeChat = (io, notificationService = null) => {
               conversationUserId,
             });
  
-            markMessagesAsRead(currentUserId, conversationUserId);
+            markMessagesAsRead(currentUserId, conversationUserId, currentRole);
+            if (notificationService) {
+              notificationService.markChatNotificationsAsRead(
+                currentUserId,
+                conversationUserId,
+                currentRole
+              );
+            }
           }
         );
       } catch (error) {
@@ -250,7 +257,14 @@ const initializeChat = (io, notificationService = null) => {
 
         if (!currentUserId) return;
 
-        markMessagesAsRead(currentUserId, conversationUserId);
+        markMessagesAsRead(currentUserId, conversationUserId, socket.userRole);
+        if (notificationService) {
+          notificationService.markChatNotificationsAsRead(
+            currentUserId,
+            conversationUserId,
+            socket.userRole
+          );
+        }
       } catch (error) {
         console.error("Error marking as read:", error);
       }
@@ -263,7 +277,33 @@ const initializeChat = (io, notificationService = null) => {
         }
 
         db.query(
-          `SELECT id, fullName, photoUrl, gender FROM users WHERE role = 'users' ORDER BY fullName`,
+          `SELECT
+             u.id,
+             u.fullName,
+             u.photoUrl,
+             u.gender,
+             latest.lastMessageAt,
+             latest.lastMessage
+           FROM users u
+           LEFT JOIN (
+             SELECT
+               conversation.userId,
+               MAX(m.timestamp) AS lastMessageAt,
+               SUBSTRING_INDEX(
+                 GROUP_CONCAT(m.message ORDER BY m.timestamp DESC SEPARATOR '|||'),
+                 '|||',
+                 1
+               ) AS lastMessage
+             FROM (
+               SELECT senderId AS userId, id FROM messages WHERE senderId IN (SELECT id FROM users WHERE role = 'users')
+               UNION ALL
+               SELECT receiverId AS userId, id FROM messages WHERE receiverId IN (SELECT id FROM users WHERE role = 'users')
+             ) conversation
+             JOIN messages m ON m.id = conversation.id
+             GROUP BY conversation.userId
+           ) latest ON latest.userId = u.id
+           WHERE u.role = 'users'
+           ORDER BY latest.lastMessageAt IS NULL, latest.lastMessageAt DESC, u.fullName ASC`,
           (err, results) => {
             if (err) {
               console.error("Error fetching users:", err);
@@ -297,14 +337,28 @@ const initializeChat = (io, notificationService = null) => {
   });
 };
  
-function markMessagesAsRead(currentUserId, senderUserId) {
-  const query = `
-    UPDATE messages
-    SET isRead = TRUE
-    WHERE receiverId = ? AND senderId = ? AND isRead = FALSE
-  `;
+function markMessagesAsRead(currentUserId, senderUserId, currentRole) {
+  const isAdmin = currentRole === "admin";
+  const query = isAdmin
+    ? `
+      UPDATE messages
+      SET isRead = TRUE
+      WHERE senderId = ?
+        AND isRead = FALSE
+        AND (
+          receiverId = ?
+          OR receiverId = 999999
+          OR receiverId IN (SELECT id FROM users WHERE role = 'admin')
+        )
+    `
+    : `
+      UPDATE messages
+      SET isRead = TRUE
+      WHERE receiverId = ? AND senderId = ? AND isRead = FALSE
+    `;
+  const params = isAdmin ? [senderUserId, currentUserId] : [currentUserId, senderUserId];
 
-  db.query(query, [currentUserId, senderUserId], (err) => {
+  db.query(query, params, (err) => {
     if (err) console.error("Error marking as read:", err);
   });
 }

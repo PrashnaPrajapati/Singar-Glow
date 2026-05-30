@@ -94,12 +94,6 @@ app.use((err, req, res, next) => {
   console.error("Unhandled server error:", err);
   res.status(500).json({ message: "Server error" });
 });
- 
-app.get("/", (req, res) => {
-  res.send("Chat server is running!");
-});
- 
-initializeChat(io);
 
 server.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`);
